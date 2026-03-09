@@ -5,7 +5,7 @@ const navItems = [
   { to: "/", label: "Migration", icon: "⚡" },
   { to: "/browse", label: "Browse", icon: "🔍" },
   { to: "/sync", label: "Sync", icon: "🔄" },
-  { to: "/sync/history", label: "Conversions", icon: "📋" },
+  { to: "/history", label: "Conversions", icon: "📋" },
 ];
 
 export default function Header() {

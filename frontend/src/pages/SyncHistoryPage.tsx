@@ -1,150 +1,158 @@
 import { useEffect, useState } from "react";
-import { listConversionHistory } from "../api/conversion";
-import ConversionHistoryTable from "../components/history/ConversionHistoryTable";
-import type { ConversionHistoryItem } from "../types/ir";
-
-const PAGE_SIZE = 10;
+import SyncHistoryTable from "../components/sync/SyncHistoryTable";
+import { getSyncHistoryDetail, listSyncHistory } from "../api/sync";
+import type { SyncHistoryEntry, SyncRunDetail } from "../types/sync";
 
 export default function SyncHistoryPage() {
-  const [items, setItems] = useState<ConversionHistoryItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
+  const [history, setHistory] = useState<SyncHistoryEntry[]>([]);
+  const [selectedRun, setSelectedRun] = useState<SyncRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
-    listConversionHistory({ limit: PAGE_SIZE, offset })
-      .then((response) => {
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const items = await listSyncHistory();
         if (cancelled) {
           return;
         }
-        setItems(response.items);
-        setTotal(response.total);
-      })
-      .catch((e: any) => {
-        if (cancelled) {
-          return;
+        setHistory(items);
+        if (items.length > 0) {
+          const detail = await getSyncHistoryDetail(items[0].id);
+          if (!cancelled) {
+            setSelectedRun(detail);
+          }
         }
-        setError(e?.response?.data?.detail || e?.message || "Failed to load conversion history");
-      })
-      .finally(() => {
+      } catch (e: any) {
+        if (!cancelled) {
+          setError(e?.response?.data?.detail || e?.message || "Failed to load sync history");
+        }
+      } finally {
         if (!cancelled) {
           setLoading(false);
         }
-      });
+      }
+    };
 
+    void load();
     return () => {
       cancelled = true;
     };
-  }, [offset, reloadKey]);
+  }, []);
 
-  const start = total === 0 ? 0 : offset + 1;
-  const end = Math.min(offset + items.length, total);
-  const writtenCount = items.filter((item) => item.write_result?.app_id).length;
-  const reviewCount = items.filter((item) => !item.write_result?.app_id).length;
+  const handleSelect = async (entry: SyncHistoryEntry) => {
+    setError("");
+    try {
+      const detail = await getSyncHistoryDetail(entry.id);
+      setSelectedRun(detail);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || e?.message || "Failed to load sync run detail");
+    }
+  };
 
   return (
     <div className="fade-in">
       <div className="page-header">
-        <h1 className="page-title">Conversion History</h1>
+        <h1 className="page-title">Sync History</h1>
         <p className="page-description">
-          Review persisted conversions, reopen diff and result views, and check whether each workflow was written into Dify
+          Review persisted manual sync runs and inspect which workflows were created, updated, skipped, or blocked
         </p>
       </div>
 
-      {loading && items.length === 0 ? (
-        <div className="empty-state card" style={{ borderStyle: "dashed" }}>
+      {error ? (
+        <div className="alert alert--error" style={{ marginBottom: 16 }}>
+          {error}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="empty-state card">
           <div className="empty-state__icon">⏳</div>
-          <p className="empty-state__text">Loading conversion history...</p>
+          <p className="empty-state__text">Loading sync history...</p>
         </div>
-      ) : null}
-
-      {!loading && error && items.length === 0 ? (
-        <div className="card" style={{ padding: 24, display: "grid", gap: 14 }}>
-          <div className="alert alert--error">{error}</div>
-          <div>
-            <button className="btn btn-secondary" onClick={() => setReloadKey((value) => value + 1)}>
-              Retry
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {!loading && !error && items.length === 0 ? (
-        <div className="empty-state card" style={{ borderStyle: "dashed" }}>
-          <div className="empty-state__icon">📋</div>
-          <p className="empty-state__text">No persisted conversions yet</p>
-          <p style={{ fontSize: "0.8rem", color: "var(--c-text-tertiary)", marginTop: 4 }}>
-            Run a conversion from upload, Coze API, or Coze DB to populate this history.
-          </p>
-        </div>
-      ) : null}
-
-      {items.length > 0 ? (
+      ) : (
         <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 16,
-              marginBottom: 20,
-            }}
-          >
-            <div className="stat-card stat-card--accent">
-              <div className="stat-card__value">{total}</div>
-              <div className="stat-card__label">Persisted conversions</div>
-            </div>
-            <div className="stat-card stat-card--green">
-              <div className="stat-card__value">{writtenCount}</div>
-              <div className="stat-card__label">Written on this page</div>
-            </div>
-            <div className="stat-card stat-card--blue">
-              <div className="stat-card__value">{reviewCount}</div>
-              <div className="stat-card__label">Awaiting Dify write</div>
-            </div>
-          </div>
+          <SyncHistoryTable
+            items={history}
+            selectedId={selectedRun?.id}
+            onSelect={handleSelect}
+          />
 
-          {error ? (
-            <div className="alert alert--error" style={{ marginBottom: 20 }}>
-              {error}
+          {selectedRun ? (
+            <div className="card" style={{ marginTop: 20, padding: 24 }}>
+              <div className="section-title">Selected Run</div>
+              <p className="section-subtitle">
+                Run {selectedRun.id} • {selectedRun.status} • {formatTimestamp(selectedRun.started_at)}
+              </p>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                  gap: 12,
+                  marginTop: 18,
+                }}
+              >
+                <HistorySummary
+                  label="Created"
+                  value={selectedRun.summary.created}
+                  tone="var(--c-green)"
+                />
+                <HistorySummary
+                  label="Updated"
+                  value={selectedRun.summary.updated}
+                  tone="var(--c-blue)"
+                />
+                <HistorySummary
+                  label="Skipped"
+                  value={selectedRun.summary.skipped}
+                  tone="var(--c-slate)"
+                />
+                <HistorySummary
+                  label="Blocked"
+                  value={selectedRun.summary.unsupported + selectedRun.summary.conflicts}
+                  tone="var(--c-amber)"
+                />
+                <HistorySummary
+                  label="Failed"
+                  value={selectedRun.summary.failed}
+                  tone="var(--c-red)"
+                />
+              </div>
             </div>
           ) : null}
-
-          <ConversionHistoryTable items={items} />
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              marginTop: 16,
-            }}
-          >
-            <div style={{ fontSize: "0.82rem", color: "var(--c-text-tertiary)" }}>
-              Showing {start}-{end} of {total}
-            </div>
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-ghost" onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} disabled={offset === 0 || loading}>
-                ← Previous
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => setOffset(offset + PAGE_SIZE)}
-                disabled={loading || offset + PAGE_SIZE >= total}
-              >
-                Next →
-              </button>
-            </div>
-          </div>
         </>
-      ) : null}
+      )}
+    </div>
+  );
+}
+
+function formatTimestamp(value: string | null) {
+  if (!value) {
+    return "Pending";
+  }
+  return new Date(value).toLocaleString();
+}
+
+function HistorySummary({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+}) {
+  return (
+    <div className="stat-card">
+      <div className="stat-card__value" style={{ color: tone }}>
+        {value}
+      </div>
+      <div className="stat-card__label">{label}</div>
     </div>
   );
 }
