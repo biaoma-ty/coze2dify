@@ -1,7 +1,9 @@
-import { useSyncStore } from "../../store/conversionStore";
+import { usePlatformStore } from "../../store/platformStore";
+import { useSyncStore } from "../../store/syncStore";
 
 export default function SyncDashboard() {
-  const { syncStatus, cozeDbConnected, difyDbConnected } = useSyncStore();
+  const { syncStatus } = useSyncStore();
+  const { cozeDbConnected, difyDbConnected } = usePlatformStore();
 
   const statusColor = {
     idle: "var(--c-slate)",
