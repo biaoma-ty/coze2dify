@@ -7,12 +7,15 @@ from sqlalchemy.orm import Session
 
 from core.coze.db_reader import CozeDbReader
 from core.dify.db_reader import DifyDbReader
+from core.sync.conflict_resolver import ConflictStrategy
+from core.sync.scheduler import SyncScheduler
 from core.sync.sync_engine import SyncEngine
-from db.database import get_db
+from db.database import SessionLocal, get_db
 from db.models import SyncConfig, SyncHistory
 
 router = APIRouter()
 sync_engine = SyncEngine()
+sync_scheduler = SyncScheduler()
 
 
 class SyncConfigRequest(BaseModel):
@@ -25,8 +28,14 @@ class SyncConfigRequest(BaseModel):
     cron_expression: str | None = None
 
 
+class SyncScheduleRequest(SyncConfigRequest):
+    cron_expression: str
+    sync_mode: str = "scheduled"
+
+
 class ConflictResolveRequest(BaseModel):
-    strategy: str = "source_wins"
+    history_id: str
+    strategy: ConflictStrategy = ConflictStrategy.SOURCE_WINS
 
 
 @router.post("/config")
@@ -67,8 +76,8 @@ async def get_sync_status(db: Session = Depends(get_db)):
     stmt = select(SyncHistory).order_by(SyncHistory.started_at.desc(), SyncHistory.id.desc())
     latest = db.execute(stmt).scalars().first()
     if latest is None:
-        return {"status": "idle", "history_id": None}
-    return {"status": latest.status, "history_id": str(latest.id)}
+        return {"status": "idle", "history_id": None, "scheduled_jobs": sync_scheduler.get_jobs()}
+    return {"status": latest.status, "history_id": str(latest.id), "scheduled_jobs": sync_scheduler.get_jobs()}
 
 
 @router.get("/history")
@@ -90,35 +99,53 @@ async def get_sync_detail(
 
 
 @router.post("/schedule")
-async def set_schedule(cron_expression: str):
-    raise HTTPException(
-        status_code=501,
-        detail="Scheduled sync is not part of the manual sync MVP.",
-    )
+async def set_schedule(
+    req: SyncScheduleRequest,
+    db: Session = Depends(get_db),
+):
+    config = _upsert_sync_config(db, req)
+    schedule = sync_scheduler.schedule(str(config.id), req.cron_expression, _scheduled_sync_callback(config.id))
+    return {"config": _serialize_config(config), "schedule": schedule}
 
 
 @router.delete("/schedule")
-async def cancel_schedule():
-    raise HTTPException(
-        status_code=501,
-        detail="Scheduled sync is not part of the manual sync MVP.",
-    )
+async def cancel_schedule(
+    config_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    config = db.get(SyncConfig, config_id)
+    if config is None:
+        raise HTTPException(status_code=404, detail=f"Sync config {config_id} not found")
+
+    config.enabled = False
+    db.add(config)
+    db.commit()
+    db.refresh(config)
+
+    cancelled = sync_scheduler.cancel(str(config.id))
+    return {"config": _serialize_config(config), "cancelled": cancelled}
 
 
 @router.post("/diff")
-async def preview_diff():
-    raise HTTPException(
-        status_code=501,
-        detail="Diff preview is not part of the manual sync MVP.",
-    )
+async def preview_diff(
+    req: SyncConfigRequest,
+    db: Session = Depends(get_db),
+):
+    config = _upsert_sync_config(db, req)
+    return sync_engine.preview_diff(db, config)
 
 
 @router.post("/conflicts/{conflict_id}/resolve")
-async def resolve_conflict(conflict_id: str, req: ConflictResolveRequest):
-    raise HTTPException(
-        status_code=501,
-        detail="Conflict resolution is not part of the manual sync MVP.",
-    )
+async def resolve_conflict(
+    conflict_id: str,
+    req: ConflictResolveRequest,
+    db: Session = Depends(get_db),
+):
+    history = _get_history(db, req.history_id)
+    try:
+        return sync_engine.resolve_conflict(db, history, conflict_id=conflict_id, strategy=req.strategy)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
@@ -200,3 +227,15 @@ def _get_history(db: Session, history_id: str) -> SyncHistory:
     if history is None:
         raise HTTPException(status_code=404, detail=f"Sync history {history_id} not found")
     return history
+
+
+def _scheduled_sync_callback(config_id: int):
+    def _run() -> None:
+        with SessionLocal() as db:
+            config = db.get(SyncConfig, config_id)
+            if config is None or not config.enabled:
+                sync_scheduler.cancel(str(config_id))
+                return
+            sync_engine.execute_sync(db, config, trigger_type="schedule")
+
+    return _run

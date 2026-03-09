@@ -46,7 +46,7 @@
 | 📊 **Visual Diff** | 🟡 Basic | Current UI shows report + mapping table, not a full graph diff |
 | 🔍 **Platform Browse** | 🚧 In Progress | Connection UI exists, workflow selection flow is not completed |
 | 🛠️ **Dev Mode** | 🟡 Experimental | Local service detection exists, but one-click workflow operations are limited |
-| 🔁 **Incremental Sync** | ❌ Planned | Sync endpoints and scheduling are mostly placeholders today |
+| 🔁 **Incremental Sync** | 🟡 Experimental | Manual sync, diff preview, conflict resolution, and cron scheduling are wired for DB-to-DB workflows |
 
 ## 📌 Current Status
 
@@ -145,14 +145,17 @@ Some endpoints below exist in the API surface but are not all fully wired in the
 
 ### Sync
 
-The sync API surface is mostly scaffolded at the moment.
+The sync API covers persisted config, manual execution, diff preview, conflict resolution, and cron scheduling.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/sync/execute` | Placeholder endpoint |
-| `GET`  | `/api/v1/sync/status` | Basic status only |
-| `GET`  | `/api/v1/sync/history` | Placeholder response |
-| `POST` | `/api/v1/sync/diff` | Placeholder endpoint |
+| `POST` | `/api/v1/sync/config` | Persist sync config |
+| `POST` | `/api/v1/sync/execute` | Execute manual sync and persist history |
+| `GET`  | `/api/v1/sync/status` | Latest status + scheduled jobs |
+| `GET`  | `/api/v1/sync/history` | List persisted sync runs |
+| `POST` | `/api/v1/sync/schedule` | Register cron-based sync |
+| `POST` | `/api/v1/sync/diff` | Preview create/update/conflict/delete gaps |
+| `POST` | `/api/v1/sync/conflicts/{id}/resolve` | Resolve a persisted conflict |
 
 ### Dev Mode
 

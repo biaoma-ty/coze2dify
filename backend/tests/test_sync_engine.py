@@ -4,6 +4,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from core.sync.sync_engine import SyncEngine
+from core.sync.conflict_resolver import ConflictStrategy
+from core.engine.conversion_service import ConversionService
 from db.database import Base
 from db.models import MigrationTask, SyncConfig, SyncHistory
 
@@ -21,6 +23,13 @@ class FakeCozeReader:
             {"id": "wf-create", "name": "Create Flow"},
             {"id": "wf-update", "name": "Update Flow"},
         ]
+
+    def read_workflow(self, workflow_id: str) -> dict[str, object] | None:
+        return {
+            "id": workflow_id,
+            "name": f"Workflow {workflow_id}",
+            "canvas": _minimal_canvas(workflow_id),
+        }
 
 
 class FakeDifyReader:
@@ -48,6 +57,48 @@ class FakeDifyReader:
             "graph": {"nodes": [{"id": "old-node"}], "edges": []},
             "features": {"mode": "old"},
         }
+
+
+class PreviewCozeReader:
+    def __init__(self, db_url: str) -> None:
+        self.db_url = db_url
+
+    def list_workflows(self) -> list[dict[str, str]]:
+        return [
+            {"id": "wf-create", "name": "Create Flow"},
+            {"id": "wf-update", "name": "Update Flow"},
+            {"id": "wf-skip", "name": "Skip Flow"},
+            {"id": "wf-conflict", "name": "Name Collision"},
+        ]
+
+    def read_workflow(self, workflow_id: str) -> dict[str, object] | None:
+        canvas = _minimal_canvas(workflow_id)
+        return {
+            "id": workflow_id,
+            "name": {
+                "wf-create": "Create Flow",
+                "wf-update": "Update Flow",
+                "wf-skip": "Skip Flow",
+                "wf-conflict": "Name Collision",
+            }[workflow_id],
+            "canvas": canvas,
+        }
+
+
+class PreviewDifyReader:
+    def __init__(self, db_url: str, workflows: dict[str, dict[str, object]]) -> None:
+        self.db_url = db_url
+        self.workflows = workflows
+
+    def list_apps(self) -> list[dict[str, str]]:
+        return [
+            {"app_id": "app-update", "name": "Update Flow"},
+            {"app_id": "app-skip", "name": "Skip Flow"},
+            {"app_id": "app-name-collision", "name": "Name Collision"},
+        ]
+
+    def read_workflow(self, app_id: str) -> dict[str, object] | None:
+        return self.workflows.get(app_id)
 
 
 class FakeConversionService:
@@ -111,6 +162,36 @@ class FakeConversionService:
             "mode": mode,
             "status": task.status,
         }
+
+
+def _minimal_canvas(node_id: str) -> dict[str, object]:
+    start_id = f"{node_id}-start"
+    end_id = f"{node_id}-end"
+    return {
+        "nodes": [
+            {
+                "id": start_id,
+                "type": "1",
+                "meta": {"position": {"x": 0, "y": 0}},
+                "data": {"outputs": [{"type": "string", "name": "input", "required": True}]},
+            },
+            {
+                "id": end_id,
+                "type": "2",
+                "meta": {"position": {"x": 320, "y": 0}},
+                "data": {"inputs": {"terminatePlan": "useAnswerContent"}},
+            },
+        ],
+        "edges": [{"sourceNodeID": start_id, "targetNodeID": end_id}],
+        "versions": {},
+    }
+
+
+def _dsl_payload_for(canvas: dict[str, object]) -> dict[str, object]:
+    service = ConversionService()
+    ir_workflow = service.engine.coze_parser.parse_dict(canvas)
+    dsl, _report = service.engine.convert_from_ir(ir_workflow)
+    return dsl.model_dump(mode="json")
 
 
 def test_execute_sync_persists_create_and_update_results(tmp_path) -> None:
@@ -179,3 +260,176 @@ def test_execute_sync_persists_create_and_update_results(tmp_path) -> None:
         ("2", "postgresql://dify.test/app", None),
         ("3", "postgresql://dify.test/app", "app-existing"),
     ]
+
+
+def test_preview_diff_detects_create_update_skip_and_conflict_without_persisting_tasks(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-preview.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    skip_payload = _dsl_payload_for(_minimal_canvas("wf-skip"))
+    update_payload = _dsl_payload_for(_minimal_canvas("wf-update"))
+    update_workflow = {
+        "app_id": "app-update",
+        "graph": {"nodes": [{"id": "changed-node"}], "edges": []},
+        "features": update_payload["workflow"]["features"],
+    }
+    skip_workflow = {
+        "app_id": "app-skip",
+        "graph": skip_payload["workflow"]["graph"],
+        "features": skip_payload["workflow"]["features"],
+    }
+
+    sync_engine = SyncEngine(
+        ConversionService(),
+        coze_reader_factory=PreviewCozeReader,
+        dify_reader_factory=lambda db_url: PreviewDifyReader(
+            db_url,
+            {"app-update": update_workflow, "app-skip": skip_workflow},
+        ),
+    )
+
+    with session_factory() as db:
+        config = SyncConfig(
+            name="Diff Preview",
+            coze_db_url="postgresql://coze.test/app",
+            dify_db_url="postgresql://dify.test/app",
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+
+        db.add_all(
+            [
+                MigrationTask(
+                    sync_config_id=config.id,
+                    source_type="database",
+                    source_workflow_id="wf-update",
+                    source_workflow_name="Update Flow",
+                    status="written",
+                    ir_snapshot={"write_result": {"app_id": "app-update", "mode": "create"}},
+                    dify_dsl="workflow: {}\n",
+                    report={},
+                    completed_at=_utcnow(),
+                ),
+                MigrationTask(
+                    sync_config_id=config.id,
+                    source_type="database",
+                    source_workflow_id="wf-skip",
+                    source_workflow_name="Skip Flow",
+                    status="written",
+                    ir_snapshot={"write_result": {"app_id": "app-skip", "mode": "create"}},
+                    dify_dsl="workflow: {}\n",
+                    report={},
+                    completed_at=_utcnow(),
+                ),
+            ]
+        )
+        db.commit()
+
+        result = sync_engine.preview_diff(db, config)
+        task_count = db.execute(select(MigrationTask)).scalars().all()
+
+    assert result["status"] == "partial"
+    assert result["summary"] == {
+        "created": 1,
+        "updated": 1,
+        "failed": 0,
+        "skipped": 1,
+        "unsupported": 0,
+        "conflicts": 1,
+    }
+    assert {item["source_workflow_id"] for item in result["items"]} == {
+        "wf-create",
+        "wf-update",
+        "wf-skip",
+        "wf-conflict",
+    }
+    assert len(task_count) == 2
+
+
+def test_resolve_conflict_source_wins_updates_history_and_persists_resolution(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-conflict.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    conversion_service = FakeConversionService()
+    sync_engine = SyncEngine(
+        conversion_service,
+        coze_reader_factory=FakeCozeReader,
+        dify_reader_factory=FakeDifyReader,
+    )
+
+    with session_factory() as db:
+        config = SyncConfig(
+            name="Conflict Sync",
+            coze_db_url="postgresql://coze.test/app",
+            dify_db_url="postgresql://dify.test/app",
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+
+        history = SyncHistory(
+            sync_config_id=config.id,
+            trigger_type="manual",
+            workflows_synced=0,
+            workflows_failed=0,
+            conflicts_count=1,
+            status="partial",
+            conflicts_resolved={
+                "summary": {
+                    "created": 0,
+                    "updated": 0,
+                    "failed": 0,
+                    "skipped": 0,
+                    "unsupported": 0,
+                    "conflicts": 1,
+                },
+                "items": [
+                    {
+                        "action": "update",
+                        "status": "conflict",
+                        "source_workflow_id": "wf-update",
+                        "source_workflow_name": "Update Flow",
+                        "target_app_id": "app-existing",
+                        "conversion_id": None,
+                        "message": "Manual resolution required.",
+                    }
+                ],
+            },
+            started_at=_utcnow(),
+        )
+        db.add(history)
+        db.commit()
+        db.refresh(history)
+
+        result = sync_engine.resolve_conflict(
+            db,
+            history,
+            conflict_id="wf-update",
+            strategy=ConflictStrategy.SOURCE_WINS,
+        )
+
+        refreshed_history = db.get(SyncHistory, history.id)
+
+    assert result["status"] == "completed"
+    assert result["summary"] == {
+        "created": 0,
+        "updated": 1,
+        "failed": 0,
+        "skipped": 0,
+        "unsupported": 0,
+        "conflicts": 0,
+    }
+    assert result["items"][0]["status"] == "updated"
+    assert result["items"][0]["resolution"]["strategy"] == "source_wins"
+    assert refreshed_history is not None
+    assert refreshed_history.workflows_synced == 1
+    assert refreshed_history.conflicts_count == 0
+    assert conversion_service.write_calls == [("1", "postgresql://dify.test/app", "app-existing")]
