@@ -42,11 +42,13 @@ class IfElseNodeGenerator:
                     dify_cond["value"] = cond.right.literal_value
                 conditions.append(dify_cond)
 
-            cases.append({
-                "case_id": branch.branch_id,
-                "logical_operator": branch.logic,
-                "conditions": conditions,
-            })
+            cases.append(
+                {
+                    "case_id": branch.branch_id,
+                    "logical_operator": branch.logic,
+                    "conditions": conditions,
+                }
+            )
 
         return {"cases": cases}
 

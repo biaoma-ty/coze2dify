@@ -45,10 +45,14 @@ class ConversionEngine:
             results.append(result)
 
             match rule.status:
-                case "mapped": mapped += 1
-                case "partial": partial += 1
-                case "unmappable": unmappable += 1
-                case "skipped": skipped += 1
+                case "mapped":
+                    mapped += 1
+                case "partial":
+                    partial += 1
+                case "unmappable":
+                    unmappable += 1
+                case "skipped":
+                    skipped += 1
 
         return ConversionReport(
             workflow_name=ir_workflow.name,

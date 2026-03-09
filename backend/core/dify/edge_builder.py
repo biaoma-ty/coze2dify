@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import uuid
-
 from core.ir.models import IREdge, IRNode
 from core.ir.types import IRNodeType
 
@@ -50,19 +48,21 @@ class EdgeBuilder:
 
             edge_id = f"{ir_edge.source_node_id}-{source_handle}-{ir_edge.target_node_id}-target"
 
-            dify_edges.append(DifyEdge(
-                id=edge_id,
-                source=ir_edge.source_node_id,
-                target=ir_edge.target_node_id,
-                sourceHandle=source_handle,
-                targetHandle="target",
-                data={
-                    "sourceType": source_type,
-                    "targetType": target_type,
-                    "isInIteration": in_iteration,
-                    "isInLoop": in_loop,
-                },
-            ))
+            dify_edges.append(
+                DifyEdge(
+                    id=edge_id,
+                    source=ir_edge.source_node_id,
+                    target=ir_edge.target_node_id,
+                    sourceHandle=source_handle,
+                    targetHandle="target",
+                    data={
+                        "sourceType": source_type,
+                        "targetType": target_type,
+                        "isInIteration": in_iteration,
+                        "isInLoop": in_loop,
+                    },
+                )
+            )
 
         return dify_edges
 

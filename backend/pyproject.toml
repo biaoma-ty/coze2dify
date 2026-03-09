@@ -3,6 +3,7 @@ name = "coze2dify"
 version = "0.1.0"
 description = "Coze to Dify workflow migration tool"
 requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",

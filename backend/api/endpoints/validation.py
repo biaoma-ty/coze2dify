@@ -8,6 +8,7 @@ async def validate_coze(file: UploadFile = File(...)):
     try:
         content = await file.read()
         from core.coze.parser import CozeParser
+
         parser = CozeParser()
         fmt = "yaml" if file.filename and file.filename.endswith((".yaml", ".yml")) else "json"
         ir = parser.parse_file(content, fmt)
@@ -21,6 +22,7 @@ async def validate_dify(file: UploadFile = File(...)):
     try:
         content = await file.read()
         import yaml
+
         data = yaml.safe_load(content)
         has_graph = "workflow" in data and "graph" in data.get("workflow", {})
         return {"valid": has_graph, "version": data.get("version", "unknown")}

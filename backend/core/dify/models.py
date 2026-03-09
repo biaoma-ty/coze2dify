@@ -51,12 +51,14 @@ class DifyWorkflow(BaseModel):
 class DifyDSL(BaseModel):
     version: str = "0.6.0"
     kind: str = "app"
-    app: dict[str, Any] = Field(default_factory=lambda: {
-        "mode": "workflow",
-        "name": "",
-        "description": "",
-        "icon": "🤖",
-        "icon_background": "#FFEAD5",
-    })
+    app: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "mode": "workflow",
+            "name": "",
+            "description": "",
+            "icon": "🤖",
+            "icon_background": "#FFEAD5",
+        }
+    )
     dependencies: list[Any] = Field(default_factory=list)
     workflow: DifyWorkflow = Field(default_factory=DifyWorkflow)

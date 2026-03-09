@@ -47,10 +47,10 @@ _IR_TO_DIFY_TYPE: dict[IRNodeType, str] = {
 }
 
 # Force import node generators so they register themselves
-import core.dify.node_generators.llm as _  # noqa: F401, E402
-import core.dify.node_generators.code as _  # noqa: F401, E402
-import core.dify.node_generators.http_request as _  # noqa: F401, E402
-import core.dify.node_generators.if_else as _  # noqa: F401, E402
+from core.dify.node_generators import code as _code_generator  # noqa: F401, E402
+from core.dify.node_generators import http_request as _http_request_generator  # noqa: F401, E402
+from core.dify.node_generators import if_else as _if_else_generator  # noqa: F401, E402
+from core.dify.node_generators import llm as _llm_generator  # noqa: F401, E402
 
 
 class DifyGenerator:
@@ -64,11 +64,7 @@ class DifyGenerator:
         node_map = {n.id: n for n in flat_nodes}
         edge_builder = EdgeBuilder(node_map)
 
-        dify_nodes = [
-            self._generate_node(ir_node)
-            for ir_node in flat_nodes
-            if ir_node.node_type != IRNodeType.COMMENT
-        ]
+        dify_nodes = [self._generate_node(ir_node) for ir_node in flat_nodes if ir_node.node_type != IRNodeType.COMMENT]
 
         all_edges: list[DifyEdge] = []
         for ir_node in ir_workflow.nodes:
@@ -109,7 +105,9 @@ class DifyGenerator:
         )
 
     def to_yaml(self, dsl: DifyDSL) -> str:
-        return yaml.dump(dsl.model_dump(exclude_none=True), default_flow_style=False, allow_unicode=True, sort_keys=False)
+        return yaml.dump(
+            dsl.model_dump(exclude_none=True), default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
 
     def to_dict(self, dsl: DifyDSL) -> dict[str, Any]:
         return dsl.model_dump(exclude_none=True)

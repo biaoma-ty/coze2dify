@@ -153,13 +153,15 @@ class DifyDbWriter:
         )
 
     def _ensure_owner_context(self, conn: Any) -> tuple[str, str]:
-        row = conn.execute(text("""
+        row = conn.execute(
+            text("""
             SELECT tenant_id, account_id
             FROM tenant_account_joins
             WHERE role = 'owner'
             ORDER BY current DESC, created_at ASC
             LIMIT 1
-        """)).fetchone()
+        """)
+        ).fetchone()
         if row:
             return str(row[0]), str(row[1])
 

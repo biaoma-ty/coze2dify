@@ -63,10 +63,12 @@ class CozeApiClient:
                 data = resp.json().get("data", {})
                 items = data.get("workspaces", [])
                 for ws in items:
-                    all_spaces.append({
-                        "id": ws.get("id", ""),
-                        "name": ws.get("name", ""),
-                    })
+                    all_spaces.append(
+                        {
+                            "id": ws.get("id", ""),
+                            "name": ws.get("name", ""),
+                        }
+                    )
                 total = data.get("total_count", 0)
                 if len(all_spaces) >= total or not items:
                     break
@@ -94,12 +96,14 @@ class CozeApiClient:
                 data = resp.json().get("data", {})
                 items = data.get("space_bots", data.get("bots", []))
                 for bot in items:
-                    all_bots.append({
-                        "bot_id": bot.get("bot_id", ""),
-                        "bot_name": bot.get("bot_name", ""),
-                        "description": bot.get("description", ""),
-                        "publish_time": bot.get("publish_time", ""),
-                    })
+                    all_bots.append(
+                        {
+                            "bot_id": bot.get("bot_id", ""),
+                            "bot_name": bot.get("bot_name", ""),
+                            "description": bot.get("description", ""),
+                            "publish_time": bot.get("publish_time", ""),
+                        }
+                    )
                 total = data.get("total", 0)
                 if len(all_bots) >= total or not items:
                     break

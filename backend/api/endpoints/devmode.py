@@ -23,10 +23,7 @@ async def devmode_status():
     detected = detector.detect_all()
     return {
         "enabled": True,
-        "detected": {
-            k: [asdict(svc) for svc in v]
-            for k, v in detected.items()
-        },
+        "detected": {k: [asdict(svc) for svc in v] for k, v in detected.items()},
     }
 
 
@@ -38,10 +35,7 @@ async def devmode_scan():
     detector = DevModeDetector()
     detected = detector.detect_all()
     return {
-        "detected": {
-            k: [asdict(svc) for svc in v]
-            for k, v in detected.items()
-        },
+        "detected": {k: [asdict(svc) for svc in v] for k, v in detected.items()},
     }
 
 

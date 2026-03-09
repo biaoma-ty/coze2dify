@@ -13,7 +13,9 @@ def format_report(report: ConversionReport) -> str:
     ]
     for r in report.node_results:
         status_icon = {"mapped": "✓", "partial": "⚠", "unmappable": "✗", "skipped": "–"}.get(r.status, "?")
-        lines.append(f"  {status_icon} {r.source_node_type} ({r.source_node_id}) → {r.target_node_type or 'N/A'} [{r.status}]")
+        lines.append(
+            f"  {status_icon} {r.source_node_type} ({r.source_node_id}) → {r.target_node_type or 'N/A'} [{r.status}]"
+        )
         for w in r.warnings:
             lines.append(f"    ⚠ {w}")
     return "\n".join(lines)

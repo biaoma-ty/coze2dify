@@ -113,11 +113,11 @@ _VAR_TYPE_MAP = {
 }
 
 # Force import node parsers so they register themselves
-import core.coze.node_parsers.llm as _  # noqa: F401, E402
-import core.coze.node_parsers.code as _  # noqa: F401, E402
-import core.coze.node_parsers.http_request as _  # noqa: F401, E402
-import core.coze.node_parsers.selector as _  # noqa: F401, E402
-import core.coze.node_parsers.loop as _  # noqa: F401, E402
+from core.coze.node_parsers import code as _code_parser  # noqa: F401, E402
+from core.coze.node_parsers import http_request as _http_request_parser  # noqa: F401, E402
+from core.coze.node_parsers import llm as _llm_parser  # noqa: F401, E402
+from core.coze.node_parsers import loop as _loop_parser  # noqa: F401, E402
+from core.coze.node_parsers import selector as _selector_parser  # noqa: F401, E402
 
 
 class CozeParser:
