@@ -154,9 +154,9 @@ def test_execute_sync_persists_create_and_update_results(tmp_path) -> None:
         result = sync_engine.execute_sync(db, config)
 
         histories = db.execute(select(SyncHistory)).scalars().all()
-        synced_tasks = db.execute(
-            select(MigrationTask).where(MigrationTask.sync_config_id == config.id)
-        ).scalars().all()
+        synced_tasks = (
+            db.execute(select(MigrationTask).where(MigrationTask.sync_config_id == config.id)).scalars().all()
+        )
 
     assert result["status"] == "completed"
     assert result["summary"] == {
