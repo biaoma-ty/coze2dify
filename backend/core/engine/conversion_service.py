@@ -100,10 +100,7 @@ class ConversionService:
         query = db.query(MigrationTask).filter(MigrationTask.sync_config_id.is_(None))
         total = query.count()
         tasks = (
-            query.order_by(MigrationTask.created_at.desc(), MigrationTask.id.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
+            query.order_by(MigrationTask.created_at.desc(), MigrationTask.id.desc()).offset(offset).limit(limit).all()
         )
         return {
             "items": [self._serialize_history_item(task) for task in tasks],
