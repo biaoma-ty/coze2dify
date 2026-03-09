@@ -102,8 +102,23 @@ dump_logs() {
     logs --tail=200 || true
 }
 
+cleanup_runtime_root() {
+  if [ ! -d "${RUNTIME_ROOT}" ]; then
+    return 0
+  fi
+
+  rm -rf "${RUNTIME_ROOT}" >/dev/null 2>&1 && return 0
+
+  # Docker bind mounts may leave root-owned database files behind on CI runners.
+  docker run --rm -v "${RUNTIME_ROOT}:/cleanup" busybox:latest \
+    sh -c 'rm -rf /cleanup/* /cleanup/.[!.]* /cleanup/..?*' >/dev/null 2>&1 || true
+
+  rm -rf "${RUNTIME_ROOT}" >/dev/null 2>&1 || true
+}
+
 cleanup() {
   local exit_code=$?
+  set +e
 
   if [ "${exit_code}" -ne 0 ]; then
     dump_logs
@@ -124,7 +139,10 @@ cleanup() {
     -f "${ROOT_DIR}/e2e/dify/docker-compose.yml" \
     down -v --remove-orphans >/dev/null 2>&1 || true
 
-  rm -rf "${RUNTIME_ROOT}"
+  cleanup_runtime_root
+
+  trap - EXIT
+  exit "${exit_code}"
 }
 
 trap cleanup EXIT
