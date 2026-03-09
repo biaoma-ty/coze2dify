@@ -1,4 +1,4 @@
-.PHONY: help install dev build test lint format clean docker-up docker-down docker-build
+.PHONY: help install dev build test lint format clean docker-up docker-down docker-build ci-local install-githooks
 
 # ── Default ──────────────────────────────────────────
 help: ## Show this help
@@ -51,6 +51,12 @@ format: ## Format backend code (ruff)
 	cd backend && ruff format .
 
 check: lint test build ## Run all checks (lint + test + build)
+
+ci-local: ## Run the local CI gate before pushing (Python matrix import + lint + tests + build)
+	./scripts/ci-local.sh
+
+install-githooks: ## Install repository git hooks (pre-push runs local CI gate)
+	git config core.hooksPath .githooks
 
 # ── Docker ───────────────────────────────────────────
 docker-up: ## Start all services via Docker Compose

@@ -259,6 +259,8 @@ make test            # Run all tests (pytest + tsc)
 make lint            # Lint all (ruff + tsc)
 make format          # Auto-format backend (ruff)
 make check           # Full check: lint + test + build
+make ci-local        # Local CI gate before push (py3.10/3.11/3.12 import + lint + tests + build)
+make install-githooks # Install repo pre-push hook
 make docker-up       # Start via Docker Compose
 make docker-down     # Stop Docker services
 make docker-build    # Build Docker images
@@ -302,6 +304,8 @@ GitHub Actions pipeline runs on every push and PR:
 - **Docker**: Build validation for both services
 
 See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for details.
+
+Before pushing a branch, run `make ci-local`. It mirrors the critical GitHub Actions checks locally and is also available as the repository pre-push hook via `make install-githooks`.
 
 Passing CI means the repository builds and lint/tests pass in CI. It does not mean every advertised UI/API workflow is complete.
 

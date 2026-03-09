@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import yaml
@@ -136,11 +136,11 @@ class ConversionService:
             "app_id": target_app_id,
             "mode": mode,
             "db_url": target_db_url,
-            "written_at": datetime.now(UTC).isoformat(),
+            "written_at": datetime.now(timezone.utc).isoformat(),
         }
         task.ir_snapshot = snapshot
         task.status = "updated" if mode == "update" else "written"
-        task.completed_at = datetime.now(UTC).replace(tzinfo=None)
+        task.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.add(task)
         db.commit()
         db.refresh(task)
@@ -176,7 +176,7 @@ class ConversionService:
             ir_snapshot=snapshot,
             dify_dsl=yaml_output,
             report=report.model_dump(mode="json"),
-            completed_at=datetime.now(UTC).replace(tzinfo=None),
+            completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(task)
         db.commit()
