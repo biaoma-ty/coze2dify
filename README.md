@@ -259,7 +259,8 @@ make test            # Run all tests (pytest + tsc)
 make lint            # Lint all (ruff + tsc)
 make format          # Auto-format backend (ruff)
 make check           # Full check: lint + test + build
-make ci-local        # Local CI gate before push (py3.10/3.11/3.12 import + lint + tests + build)
+make ci-local        # Local CI gate before push (imports + lint + tests + build + e2e smoke)
+make e2e-smoke       # Browser-level migration smoke against an ephemeral Dify stack
 make install-githooks # Install repo pre-push hook
 make docker-up       # Start via Docker Compose
 make docker-down     # Stop Docker services
@@ -301,13 +302,32 @@ GitHub Actions pipeline runs on every push and PR:
 
 - **Backend**: Python 3.10/3.11/3.12 × lint (ruff) + unit tests (pytest)
 - **Frontend**: Node 18/20 × typecheck (tsc) + build (vite)
+- **Migration smoke**: Playwright uploads a reproducible Coze fixture, writes it into an ephemeral Dify 1.13.0 stack, opens the Dify workflow page, and fails on `console.error` / uncaught exceptions
 - **Docker**: Build validation for both services
 
 See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for details.
 
 Before pushing a branch, run `make ci-local`. It mirrors the critical GitHub Actions checks locally and is also available as the repository pre-push hook via `make install-githooks`.
 
-Passing CI means the repository builds and lint/tests pass in CI. It does not mean every advertised UI/API workflow is complete.
+### Local Smoke Reproduction
+
+`make e2e-smoke` boots an isolated Dify stack on temporary ports, starts the local backend/frontend, and runs the browser smoke gate end to end.
+
+Requirements:
+
+- Docker with `docker compose`
+- frontend dependencies installed (`npm install` in `frontend/`)
+- a Python environment with backend deps; `make ci-local` provisions one automatically, or you can run `pip install -e "backend[dev]"` first
+- Playwright Chromium; the smoke script installs it on demand
+
+Default ports used by the smoke gate:
+
+- coze2dify backend: `127.0.0.1:18000`
+- coze2dify frontend: `127.0.0.1:15173`
+- ephemeral Dify web: `127.0.0.1:18080`
+- ephemeral Dify Postgres: `127.0.0.1:15433`
+
+Passing CI means lint, unit tests, builds, and the migration smoke gate pass in CI. It still does not mean every advertised UI/API workflow is complete.
 
 ## 📄 License
 
