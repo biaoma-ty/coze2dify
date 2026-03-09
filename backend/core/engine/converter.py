@@ -3,7 +3,7 @@ from __future__ import annotations
 from core.coze.parser import CozeParser
 from core.dify.generator import DifyGenerator
 from core.dify.models import DifyDSL
-from core.ir.models import ConversionReport, IRWorkflow, NodeConversionResult
+from core.ir.models import ConversionReport, IRNode, IRWorkflow, NodeConversionResult
 from core.mapper.node_mapper import NodeMapper
 
 
@@ -32,7 +32,8 @@ class ConversionEngine:
         results: list[NodeConversionResult] = []
         mapped = partial = unmappable = skipped = 0
 
-        for node in ir_workflow.nodes:
+        all_nodes = self._iter_nodes(ir_workflow.nodes)
+        for node in all_nodes:
             rule = self.node_mapper.get_rule(node.node_type)
             result = NodeConversionResult(
                 source_node_id=node.id,
@@ -56,10 +57,18 @@ class ConversionEngine:
 
         return ConversionReport(
             workflow_name=ir_workflow.name,
-            total_nodes=len(ir_workflow.nodes),
+            total_nodes=len(all_nodes),
             mapped_count=mapped,
             partial_count=partial,
             unmappable_count=unmappable,
             skipped_count=skipped,
             node_results=results,
         )
+
+    def _iter_nodes(self, nodes: list[IRNode]) -> list[IRNode]:
+        flattened: list[IRNode] = []
+        for node in nodes:
+            flattened.append(node)
+            if node.children:
+                flattened.extend(self._iter_nodes(node.children))
+        return flattened

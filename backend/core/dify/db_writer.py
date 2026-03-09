@@ -69,6 +69,9 @@ class DifyDbWriter:
             # Create workflow
             graph_json = json.dumps(dsl.workflow.graph.model_dump())
             features_json = json.dumps(dsl.workflow.features or {})
+            environment_variables_json = self._serialize_named_variables(dsl.workflow.environment_variables)
+            conversation_variables_json = self._serialize_named_variables(dsl.workflow.conversation_variables)
+            rag_pipeline_variables_json = self._serialize_named_variables([])
             workflow_type = "workflow" if app_config.get("mode", "workflow") == "workflow" else "chat"
 
             conn.execute(
@@ -98,9 +101,9 @@ class DifyDbWriter:
                     "updated_by": account_id,
                     "created_at": now,
                     "updated_at": now,
-                    "environment_variables": json.dumps(dsl.workflow.environment_variables or []),
-                    "conversation_variables": json.dumps(dsl.workflow.conversation_variables or []),
-                    "rag_pipeline_variables": json.dumps([]),
+                    "environment_variables": environment_variables_json,
+                    "conversation_variables": conversation_variables_json,
+                    "rag_pipeline_variables": rag_pipeline_variables_json,
                     "marked_name": "",
                     "marked_comment": "",
                 },
@@ -111,6 +114,9 @@ class DifyDbWriter:
     def update_workflow(self, app_id: str, dsl: DifyDSL) -> None:
         graph_json = json.dumps(dsl.workflow.graph.model_dump())
         features_json = json.dumps(dsl.workflow.features or {})
+        environment_variables_json = self._serialize_named_variables(dsl.workflow.environment_variables)
+        conversation_variables_json = self._serialize_named_variables(dsl.workflow.conversation_variables)
+        rag_pipeline_variables_json = self._serialize_named_variables([])
         now = datetime.now(UTC).replace(tzinfo=None)
 
         with self.engine.begin() as conn:
@@ -120,6 +126,9 @@ class DifyDbWriter:
                     UPDATE workflows
                     SET graph = :graph,
                         features = :features,
+                        environment_variables = :environment_variables,
+                        conversation_variables = :conversation_variables,
+                        rag_pipeline_variables = :rag_pipeline_variables,
                         updated_by = :updated_by,
                         updated_at = :updated_at
                     WHERE app_id = :app_id
@@ -127,6 +136,9 @@ class DifyDbWriter:
                 {
                     "graph": graph_json,
                     "features": features_json,
+                    "environment_variables": environment_variables_json,
+                    "conversation_variables": conversation_variables_json,
+                    "rag_pipeline_variables": rag_pipeline_variables_json,
                     "updated_by": account_id,
                     "updated_at": now,
                     "app_id": app_id,
@@ -241,3 +253,17 @@ class DifyDbWriter:
             )
 
         return str(tenant_id), str(account_id)
+
+    @staticmethod
+    def _serialize_named_variables(variables: list[Any]) -> str:
+        if not variables:
+            return "{}"
+
+        payload: dict[str, Any] = {}
+        for index, variable in enumerate(variables):
+            if not isinstance(variable, dict):
+                continue
+            key = str(variable.get("name") or variable.get("variable") or variable.get("id") or f"var_{index}")
+            payload[key] = variable
+
+        return json.dumps(payload, ensure_ascii=False)

@@ -26,6 +26,7 @@ _NODE_TYPE_TO_DIFY = {
     IRNodeType.VARIABLE_AGGREGATOR: "variable-aggregator",
     IRNodeType.VARIABLE_ASSIGNER: "assigner",
     IRNodeType.OUTPUT_EMITTER: "answer",
+    IRNodeType.TEXT_PROCESSOR: "template-transform",
     IRNodeType.INTENT_DETECTOR: "question-classifier",
     IRNodeType.QUESTION_ANSWER: "human-input",
     IRNodeType.KNOWLEDGE_WRITE: "knowledge-index",

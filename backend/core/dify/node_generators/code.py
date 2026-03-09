@@ -11,9 +11,9 @@ _TYPE_MAP = {
     IRVariableType.INTEGER: "number",
     IRVariableType.FLOAT: "number",
     IRVariableType.NUMBER: "number",
-    IRVariableType.BOOLEAN: "string",
+    IRVariableType.BOOLEAN: "boolean",
     IRVariableType.OBJECT: "object",
-    IRVariableType.ARRAY: "array[string]",
+    IRVariableType.ARRAY: "array[any]",
     IRVariableType.ANY: "string",
 }
 
