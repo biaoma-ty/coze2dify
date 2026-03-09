@@ -5,7 +5,7 @@ const navItems = [
   { to: "/", label: "Migration", icon: "⚡" },
   { to: "/browse", label: "Browse", icon: "🔍" },
   { to: "/sync", label: "Sync", icon: "🔄" },
-  { to: "/sync/history", label: "History", icon: "📋" },
+  { to: "/sync/history", label: "Conversions", icon: "📋" },
 ];
 
 export default function Header() {
@@ -14,6 +14,7 @@ export default function Header() {
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/" || location.pathname.startsWith("/diff") || location.pathname.startsWith("/mapping") || location.pathname.startsWith("/result");
+    if (path === "/sync") return location.pathname === "/sync";
     return location.pathname.startsWith(path);
   };
 

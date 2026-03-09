@@ -47,6 +47,34 @@ export interface WriteResult {
   written_at?: string;
 }
 
+export interface ConversionHistoryReportSummary {
+  workflow_name: string;
+  total_nodes: number;
+  mapped_count: number;
+  partial_count: number;
+  unmappable_count: number;
+  skipped_count: number;
+  warnings_count: number;
+  errors_count: number;
+}
+
+export interface ConversionHistoryItem {
+  conversion_id: string;
+  status: string;
+  source_type: string;
+  source_workflow_id: string;
+  source_workflow_name: string;
+  created_at: string | null;
+  completed_at: string | null;
+  write_result: WriteResult | null;
+  report_summary: ConversionHistoryReportSummary | null;
+}
+
+export interface ConversionHistoryResponse {
+  items: ConversionHistoryItem[];
+  total: number;
+}
+
 export interface ConversionDetail {
   conversion_id: string;
   status: string;

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -27,6 +27,15 @@ class DbConversionRequest(BaseModel):
 class WriteToDifyRequest(BaseModel):
     db_url: str | None = None
     app_id: str | None = None
+
+
+@router.get("")
+async def list_conversions(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    return service.list_conversions(db, limit=limit, offset=offset)
 
 
 @router.post("")

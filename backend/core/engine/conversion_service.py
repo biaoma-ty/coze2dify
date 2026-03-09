@@ -96,6 +96,20 @@ class ConversionService:
             "completed_at": task.completed_at.isoformat() if task.completed_at else None,
         }
 
+    def list_conversions(self, db: Session, *, limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        query = db.query(MigrationTask).filter(MigrationTask.sync_config_id.is_(None))
+        total = query.count()
+        tasks = (
+            query.order_by(MigrationTask.created_at.desc(), MigrationTask.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return {
+            "items": [self._serialize_history_item(task) for task in tasks],
+            "total": total,
+        }
+
     def get_yaml(self, db: Session, conversion_id: str) -> str:
         task = self._get_task(db, conversion_id)
         if not task.dify_dsl:
@@ -194,6 +208,43 @@ class ConversionService:
         if task is None:
             raise LookupError(f"Conversion {conversion_id} not found")
         return task
+
+    @classmethod
+    def _serialize_history_item(cls, task: MigrationTask) -> dict[str, Any]:
+        snapshot = task.ir_snapshot or {}
+        write_result = snapshot.get("write_result") if isinstance(snapshot, dict) else None
+        if not isinstance(write_result, dict):
+            write_result = None
+
+        return {
+            "conversion_id": str(task.id),
+            "status": task.status,
+            "source_type": task.source_type,
+            "source_workflow_id": task.source_workflow_id,
+            "source_workflow_name": task.source_workflow_name,
+            "created_at": task.created_at.isoformat() if task.created_at else None,
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+            "write_result": write_result,
+            "report_summary": cls._build_report_summary(task.report),
+        }
+
+    @staticmethod
+    def _build_report_summary(report: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not isinstance(report, dict):
+            return None
+
+        warnings = report.get("warnings")
+        errors = report.get("errors")
+        return {
+            "workflow_name": report.get("workflow_name") or "",
+            "total_nodes": int(report.get("total_nodes") or 0),
+            "mapped_count": int(report.get("mapped_count") or 0),
+            "partial_count": int(report.get("partial_count") or 0),
+            "unmappable_count": int(report.get("unmappable_count") or 0),
+            "skipped_count": int(report.get("skipped_count") or 0),
+            "warnings_count": len(warnings) if isinstance(warnings, list) else 0,
+            "errors_count": len(errors) if isinstance(errors, list) else 0,
+        }
 
     @classmethod
     def _extract_canvas(cls, payload: Any) -> dict[str, Any]:
