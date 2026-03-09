@@ -14,8 +14,28 @@ make install
 
 1. Fork the repo and create a feature branch from `main`
 2. Make your changes
-3. Run checks: `make check` (lint + test + build)
-4. Submit a Pull Request
+3. Run checks locally before every push:
+   - `make check` during development
+   - `make ci-local` before pushing to mirror the GitHub Actions gate
+4. Optionally install the repository hook once with `make install-githooks`
+5. Submit a Pull Request
+
+## Local CI Gate
+
+`make ci-local` is the required pre-push gate for this repository. It runs:
+
+- backend import smoke on Python 3.10 / 3.11 / 3.12
+- backend lint (`ruff check`)
+- backend unit tests (`pytest`)
+- frontend production build (`npm run build`)
+
+If you want Git to enforce this automatically, run:
+
+```bash
+make install-githooks
+```
+
+That installs the repository `pre-push` hook so pushes fail fast when the local CI gate is red.
 
 ## Code Style
 

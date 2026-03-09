@@ -1,17 +1,28 @@
 import { useState } from "react";
 
 interface Props {
-  onSubmit: (accessToken: string, workflowId: string) => void;
+  onSubmit: (params: { accessToken: string; workflowId: string; apiBase: string }) => void;
 }
 
 export default function CozeApiConfig({ onSubmit }: Props) {
   const [token, setToken] = useState("");
   const [workflowId, setWorkflowId] = useState("");
-  const ready = Boolean(token && workflowId);
+  const [apiBase, setApiBase] = useState("https://api.coze.com");
+  const ready = Boolean(token && workflowId && apiBase);
 
   return (
     <div className="card card--elevated" style={{ padding: 28 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div>
+          <label className="label">API Base</label>
+          <input
+            className="input input-mono"
+            value={apiBase}
+            onChange={(e) => setApiBase(e.target.value)}
+            placeholder="https://api.coze.com"
+          />
+        </div>
+
         <div>
           <label className="label">Coze Access Token</label>
           <input
@@ -35,7 +46,7 @@ export default function CozeApiConfig({ onSubmit }: Props) {
 
         <button
           className={`btn ${ready ? "btn-primary" : "btn-secondary"}`}
-          onClick={() => onSubmit(token, workflowId)}
+          onClick={() => onSubmit({ accessToken: token, workflowId, apiBase })}
           disabled={!ready}
           style={{ alignSelf: "flex-start" }}
         >

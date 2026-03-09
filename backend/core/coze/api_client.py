@@ -96,9 +96,17 @@ class CozeApiClient:
                 data = resp.json().get("data", {})
                 items = data.get("space_bots", data.get("bots", []))
                 for bot in items:
+                    workflow_id = bot.get("workflow_id", "") or bot.get("workflowId", "")
+                    if not workflow_id:
+                        workflow_list = bot.get("workflow_info_list") or bot.get("workflow_list") or []
+                        if isinstance(workflow_list, list) and workflow_list:
+                            first = workflow_list[0] or {}
+                            if isinstance(first, dict):
+                                workflow_id = first.get("workflow_id", "") or first.get("id", "")
                     all_bots.append(
                         {
                             "bot_id": bot.get("bot_id", ""),
+                            "workflow_id": str(workflow_id or ""),
                             "bot_name": bot.get("bot_name", ""),
                             "description": bot.get("description", ""),
                             "publish_time": bot.get("publish_time", ""),

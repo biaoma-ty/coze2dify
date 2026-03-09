@@ -2,11 +2,21 @@ import { useState } from "react";
 
 interface Props {
   label: string;
-  onTest: (url: string) => void;
+  workflowLabel?: string;
+  onTest: (url: string) => void | Promise<void>;
+  onSubmit?: (params: { url: string; workflowId: string }) => void | Promise<void>;
+  submitLabel?: string;
 }
 
-export default function DbConnectionConfig({ label, onTest }: Props) {
+export default function DbConnectionConfig({
+  label,
+  workflowLabel = "Workflow ID",
+  onTest,
+  onSubmit,
+  submitLabel = "Fetch Workflow",
+}: Props) {
   const [url, setUrl] = useState("");
+  const [workflowId, setWorkflowId] = useState("");
 
   return (
     <div className="card card--elevated" style={{ padding: 24 }}>
@@ -33,14 +43,38 @@ export default function DbConnectionConfig({ label, onTest }: Props) {
           />
         </div>
 
-        <button
-          className={`btn ${url ? "btn-secondary" : "btn-ghost"}`}
-          onClick={() => onTest(url)}
-          disabled={!url}
-          style={{ alignSelf: "flex-start" }}
-        >
-          🔌 Test Connection
-        </button>
+        {onSubmit && (
+          <div>
+            <label className="label">{workflowLabel}</label>
+            <input
+              className="input input-mono"
+              value={workflowId}
+              onChange={(e) => setWorkflowId(e.target.value)}
+              placeholder="1"
+            />
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button
+            className={`btn ${url ? "btn-secondary" : "btn-ghost"}`}
+            onClick={() => onTest(url)}
+            disabled={!url}
+            style={{ alignSelf: "flex-start" }}
+          >
+            🔌 Test Connection
+          </button>
+          {onSubmit && (
+            <button
+              className={`btn ${url && workflowId ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => onSubmit({ url, workflowId })}
+              disabled={!url || !workflowId}
+              style={{ alignSelf: "flex-start" }}
+            >
+              ⚡ {submitLabel}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

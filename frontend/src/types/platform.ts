@@ -7,6 +7,7 @@ export interface CozeWorkspace {
 
 export interface CozeWorkflowItem {
   bot_id: string;
+  workflow_id?: string;
   bot_name: string;
   description: string;
   publish_time: string;

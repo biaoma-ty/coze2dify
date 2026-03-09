@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import uuid
 from typing import Any
 
@@ -20,7 +20,7 @@ class DifyDbWriter:
         app_id = str(uuid.uuid4())
         workflow_id = str(uuid.uuid4())
         app_config = dsl.app
-        now = datetime.now(UTC).replace(tzinfo=None)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         with self.engine.begin() as conn:
             tenant_id, account_id = self._ensure_owner_context(conn)
@@ -117,7 +117,7 @@ class DifyDbWriter:
         environment_variables_json = self._serialize_named_variables(dsl.workflow.environment_variables)
         conversation_variables_json = self._serialize_named_variables(dsl.workflow.conversation_variables)
         rag_pipeline_variables_json = self._serialize_named_variables([])
-        now = datetime.now(UTC).replace(tzinfo=None)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         with self.engine.begin() as conn:
             _, account_id = self._ensure_owner_context(conn)
@@ -180,7 +180,7 @@ class DifyDbWriter:
         account_id = conn.execute(text("SELECT id FROM accounts ORDER BY created_at ASC LIMIT 1")).scalar()
         if account_id is None:
             account_id = str(uuid.uuid4())
-            now = datetime.now(UTC).replace(tzinfo=None)
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             conn.execute(
                 text("""
                     INSERT INTO accounts (
@@ -212,7 +212,7 @@ class DifyDbWriter:
         tenant_id = conn.execute(text("SELECT id FROM tenants ORDER BY created_at ASC LIMIT 1")).scalar()
         if tenant_id is None:
             tenant_id = str(uuid.uuid4())
-            now = datetime.now(UTC).replace(tzinfo=None)
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             conn.execute(
                 text("""
                     INSERT INTO tenants (id, name, plan, status, created_at, updated_at)
