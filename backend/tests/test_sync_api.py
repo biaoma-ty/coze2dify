@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+import main
 from api.endpoints import sync as sync_endpoints
 from api.router import api_router
 from core.sync.conflict_resolver import ConflictStrategy
@@ -332,3 +333,81 @@ def test_sync_schedule_diff_and_conflict_endpoints_are_wired(tmp_path, monkeypat
     assert cancel_response.json()["config"]["enabled"] is False
 
     scheduler.shutdown()
+
+
+def test_restore_schedules_registers_only_enabled_scheduled_configs(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-restore.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    scheduler = SyncScheduler()
+
+    try:
+        with session_factory() as db:
+            db.add_all(
+                [
+                    SyncConfig(
+                        name="Enabled Schedule",
+                        coze_db_url="postgresql://coze.test/enabled",
+                        dify_db_url="postgresql://dify.test/enabled",
+                        sync_mode="scheduled",
+                        cron_expression="0 3 * * *",
+                        enabled=True,
+                    ),
+                    SyncConfig(
+                        name="Disabled Schedule",
+                        coze_db_url="postgresql://coze.test/disabled",
+                        dify_db_url="postgresql://dify.test/disabled",
+                        sync_mode="scheduled",
+                        cron_expression="15 4 * * *",
+                        enabled=False,
+                    ),
+                    SyncConfig(
+                        name="Manual Config",
+                        coze_db_url="postgresql://coze.test/manual",
+                        dify_db_url="postgresql://dify.test/manual",
+                        sync_mode="manual",
+                        cron_expression=None,
+                        enabled=True,
+                    ),
+                    SyncConfig(
+                        name="Missing Cron",
+                        coze_db_url="postgresql://coze.test/nocron",
+                        dify_db_url="postgresql://dify.test/nocron",
+                        sync_mode="scheduled",
+                        cron_expression=None,
+                        enabled=True,
+                    ),
+                ]
+            )
+            db.commit()
+
+        restored_jobs = sync_endpoints.restore_schedules(session_factory=session_factory, scheduler=scheduler)
+        scheduled_jobs = scheduler.get_jobs()
+    finally:
+        scheduler.shutdown()
+
+    assert len(restored_jobs) == 1
+    assert len(scheduled_jobs) == 1
+    assert restored_jobs[0]["config_id"] == scheduled_jobs[0]["config_id"]
+    assert restored_jobs[0]["cron_expression"] == "0 3 * * *"
+
+
+def test_app_startup_invokes_schedule_restore(monkeypatch) -> None:
+    called = {"create_all": 0, "restore_schedules": 0}
+
+    def fake_create_all(*args, **kwargs) -> None:  # noqa: ANN002, ANN003 - test double
+        called["create_all"] += 1
+
+    def fake_restore_schedules() -> list[dict[str, object]]:
+        called["restore_schedules"] += 1
+        return []
+
+    monkeypatch.setattr(main.Base.metadata, "create_all", fake_create_all)
+    monkeypatch.setattr(main.sync_endpoints, "restore_schedules", fake_restore_schedules)
+
+    main.ensure_project_tables()
+
+    assert called == {"create_all": 1, "restore_schedules": 1}

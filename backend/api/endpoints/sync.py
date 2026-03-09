@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -16,6 +18,7 @@ from db.models import SyncConfig, SyncHistory
 router = APIRouter()
 sync_engine = SyncEngine()
 sync_scheduler = SyncScheduler()
+logger = logging.getLogger(__name__)
 
 
 class SyncConfigRequest(BaseModel):
@@ -239,3 +242,37 @@ def _scheduled_sync_callback(config_id: int):
             sync_engine.execute_sync(db, config, trigger_type="schedule")
 
     return _run
+
+
+def restore_schedules(*, session_factory=SessionLocal, scheduler: SyncScheduler | None = None) -> list[dict[str, object]]:
+    active_scheduler = scheduler or sync_scheduler
+    restored_jobs: list[dict[str, object]] = []
+
+    with session_factory() as db:
+        stmt = (
+            select(SyncConfig)
+            .where(
+                SyncConfig.enabled.is_(True),
+                SyncConfig.sync_mode == "scheduled",
+            )
+            .order_by(SyncConfig.updated_at.desc(), SyncConfig.id.desc())
+        )
+        configs = db.execute(stmt).scalars().all()
+
+        for config in configs:
+            cron_expression = (config.cron_expression or "").strip()
+            if not cron_expression:
+                continue
+
+            try:
+                restored_jobs.append(
+                    active_scheduler.schedule(
+                        str(config.id),
+                        cron_expression,
+                        _scheduled_sync_callback(config.id),
+                    )
+                )
+            except ValueError:
+                logger.warning("Skipping invalid persisted sync schedule for config %s", config.id)
+
+    return restored_jobs
