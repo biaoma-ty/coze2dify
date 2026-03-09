@@ -2,7 +2,7 @@
 
 # 🔄 coze2dify
 
-**Coze → Dify Workflow Migration & Sync Engine**
+**Coze → Dify Workflow Migration Toolkit**
 
 [![CI](https://github.com/biaoma-ty/coze2dify/actions/workflows/ci.yml/badge.svg)](https://github.com/biaoma-ty/coze2dify/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-≥3.10-3776AB?logo=python&logoColor=white)](https://python.org)
@@ -21,9 +21,9 @@
 
 <br/><br/>
 
-*将 Coze 工作流自动转换为 Dify DSL 格式，支持可视化对比、增量同步与数据库直写。*
+*将 Coze 工作流转换为 Dify DSL / graph，当前重点是稳定迁移链路而不是完整平台产品。*
 
-*Automatically convert Coze workflows to Dify DSL format with visual diff, incremental sync, and direct DB writes.*
+*Convert Coze workflows into Dify DSL / graph. The current focus is migration correctness, not a fully finished platform product.*
 
 <br/>
 
@@ -37,16 +37,25 @@
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| 🔄 **Workflow Conversion** | ✅ Ready | Coze JSON/YAML → IR → Dify DSL YAML |
-| 📤 **Multi-Source Input** | ✅ Ready | File upload, Coze API, Database direct-read |
-| 📥 **Multi-Target Output** | ✅ Ready | DSL download, Dify DB direct-write |
-| 🗺️ **42-Node Mapping** | ✅ Ready | Complete node type mapping table |
-| 🔀 **Variable Transform** | ✅ Ready | Coze `BlockInputReference` → Dify `variable_selector` |
-| 📊 **Visual Diff** | ✅ Ready | Side-by-side React Flow comparison |
-| 🔍 **Platform Browse** | ✅ Ready | Connect Coze/Dify accounts, browse & select workflows |
-| 🛠️ **Dev Mode** | ✅ Ready | Auto-detect local docker deployments |
-| 🔁 **Incremental Sync** | ✅ Ready | Change detection, conflict resolution, scheduled sync |
-| 📋 **Conversion Report** | ✅ Ready | Mapping stats, warnings, unmappable nodes |
+| 🔄 **Workflow Conversion** | ✅ Verified | Coze JSON/YAML → IR → Dify graph / DSL |
+| 📂 **File Import + DSL Export** | ✅ Verified | Upload local workflow file and export generated DSL |
+| 🗺️ **Node Mapping** | 🟡 Partial | Main node types covered, but not every Coze construct is lossless |
+| 🔀 **Variable Transform** | 🟡 Partial | Common `BlockInputReference` cases work; edge cases still exist |
+| 📋 **Conversion Report** | ✅ Verified | Mapping stats, warnings, unmappable nodes |
+| 🗄️ **Direct Dify DB Write** | 🟡 Experimental | Backend writer works for local migration tests, UI/API flow is not fully wired |
+| 📊 **Visual Diff** | 🟡 Basic | Current UI shows report + mapping table, not a full graph diff |
+| 🔍 **Platform Browse** | 🚧 In Progress | Connection UI exists, workflow selection flow is not completed |
+| 🛠️ **Dev Mode** | 🟡 Experimental | Local service detection exists, but one-click workflow operations are limited |
+| 🔁 **Incremental Sync** | ❌ Planned | Sync endpoints and scheduling are mostly placeholders today |
+
+## 📌 Current Status
+
+- **Verified path**: file-based Coze workflow conversion into Dify graph / DSL.
+- **Verified in local testing**: migrated workflow can be written into a local Dify PostgreSQL instance and opened in Dify.
+- **Partially built**: platform browse, dev mode helpers, and direct-write UI.
+- **Not production-ready yet**: incremental sync, migration history persistence, and several API/database import flows.
+
+If you are evaluating the project, treat it as a working migration core with unfinished product surface area.
 
 ## 🏗️ Architecture
 
@@ -55,11 +64,13 @@
 │  Coze Source     │                              │  Dify Target     │
 │  ┌────────────┐  │                              │  ┌────────────┐  │
 │  │ JSON/YAML  │──┤                         ┌───→│  │ DSL YAML   │  │
-│  │ API Fetch  │──┤  CozeParser → IR → DifyGen   │  │ DB Write   │  │
-│  │ DB Reader  │──┤       │         │       └───→│  │ API Push   │  │
+│  │ API Fetch* │──┤  CozeParser → IR → DifyGen   │  │ DB Write*  │  │
+│  │ DB Reader* │──┤       │         │       └───→│  │ API Push*  │  │
 │  └────────────┘  │  Validator  Validator        │  └────────────┘  │
 └─────────────────┘                              └──────────────────┘
 ```
+
+`*` Experimental or partially wired.
 
 ### Why IR (Intermediate Representation)?
 
@@ -74,7 +85,7 @@
 
 - Python ≥ 3.10
 - Node.js ≥ 18
-- PostgreSQL 16 (optional, for sync/history)
+- PostgreSQL 16 (optional, for local Dify write testing)
 
 ### Option 1: Docker (Recommended)
 
@@ -110,6 +121,8 @@ npm run dev
 
 ### Platform Connection
 
+Some endpoints below exist in the API surface but are not all fully wired in the frontend flow yet.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/v1/platform/coze/connect` | Test Coze PAT token |
@@ -125,16 +138,18 @@ npm run dev
 | `POST` | `/api/v1/coze/upload` | Upload Coze workflow file |
 | `POST` | `/api/v1/convert` | Execute conversion |
 | `GET`  | `/api/v1/convert/{id}/dsl` | Download Dify DSL |
-| `POST` | `/api/v1/convert/{id}/write-to-dify` | Direct-write to Dify DB |
+| `POST` | `/api/v1/convert/{id}/write-to-dify` | Reserved endpoint; public API flow not fully implemented yet |
 
 ### Sync
 
+The sync API surface is mostly scaffolded at the moment.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/sync/execute` | Trigger manual sync |
-| `GET`  | `/api/v1/sync/status` | Get sync status |
-| `GET`  | `/api/v1/sync/history` | Sync history list |
-| `POST` | `/api/v1/sync/diff` | Compare source/target diff |
+| `POST` | `/api/v1/sync/execute` | Placeholder endpoint |
+| `GET`  | `/api/v1/sync/status` | Basic status only |
+| `GET`  | `/api/v1/sync/history` | Placeholder response |
+| `POST` | `/api/v1/sync/diff` | Placeholder endpoint |
 
 ### Dev Mode
 
@@ -147,6 +162,8 @@ npm run dev
 > Full interactive docs available at `/docs` (Swagger UI) or `/redoc`.
 
 ## 🗺️ Node Mapping (42 types)
+
+The mapping table is the target design. Actual support quality varies by node type, and several mappings are still partial.
 
 | Coze Node | Dify Node | Level |
 |-----------|-----------|-------|
@@ -285,6 +302,8 @@ GitHub Actions pipeline runs on every push and PR:
 - **Docker**: Build validation for both services
 
 See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for details.
+
+Passing CI means the repository builds and lint/tests pass in CI. It does not mean every advertised UI/API workflow is complete.
 
 ## 📄 License
 

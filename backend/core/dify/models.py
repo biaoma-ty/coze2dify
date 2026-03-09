@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DifyEdge(BaseModel):
@@ -17,11 +17,12 @@ class DifyEdge(BaseModel):
 
 
 class DifyNodeData(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     type: str
     title: str = ""
     desc: str = ""
     selected: bool = False
-    extra: dict[str, Any] = Field(default_factory=dict)
 
 
 class DifyNode(BaseModel):
@@ -33,6 +34,10 @@ class DifyNode(BaseModel):
     type: str = "custom"
     sourcePosition: str = "right"
     targetPosition: str = "left"
+    parentId: str | None = None
+    zIndex: int | None = None
+    draggable: bool | None = None
+    selectable: bool | None = None
 
 
 class DifyGraph(BaseModel):
