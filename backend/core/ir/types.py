@@ -1,0 +1,88 @@
+from enum import Enum
+
+
+class IRNodeType(str, Enum):
+    START = "start"
+    END = "end"
+    LLM = "llm"
+    CODE = "code"
+    HTTP_REQUEST = "http_request"
+    CONDITION = "condition"
+    LOOP_COUNTED = "loop_counted"
+    LOOP_ARRAY = "loop_array"
+    LOOP_INFINITE = "loop_infinite"
+    BATCH = "batch"
+    KNOWLEDGE_RETRIEVAL = "knowledge_retrieval"
+    KNOWLEDGE_WRITE = "knowledge_write"
+    KNOWLEDGE_DELETE = "knowledge_delete"
+    PLUGIN = "plugin"
+    SUB_WORKFLOW = "sub_workflow"
+    VARIABLE_AGGREGATOR = "variable_aggregator"
+    VARIABLE_ASSIGNER = "variable_assigner"
+    TEXT_PROCESSOR = "text_processor"
+    QUESTION_ANSWER = "question_answer"
+    INTENT_DETECTOR = "intent_detector"
+    OUTPUT_EMITTER = "output_emitter"
+    DATABASE_QUERY = "database_query"
+    DATABASE_INSERT = "database_insert"
+    DATABASE_UPDATE = "database_update"
+    DATABASE_DELETE = "database_delete"
+    DATABASE_CUSTOM_SQL = "database_custom_sql"
+    CONVERSATION_OP = "conversation_op"
+    MESSAGE_OP = "message_op"
+    JSON_SERIALIZE = "json_serialize"
+    JSON_DESERIALIZE = "json_deserialize"
+    INPUT_RECEIVER = "input_receiver"
+    COMMENT = "comment"
+    BREAK = "break"
+    CONTINUE = "continue"
+    UNKNOWN = "unknown"
+
+
+class IRVariableType(str, Enum):
+    STRING = "string"
+    INTEGER = "integer"
+    FLOAT = "float"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+    OBJECT = "object"
+    ARRAY = "array"
+    ARRAY_STRING = "array_string"
+    ARRAY_NUMBER = "array_number"
+    ARRAY_OBJECT = "array_object"
+    FILE = "file"
+    ANY = "any"
+
+
+class IRConditionOperator(str, Enum):
+    EQUAL = "equal"
+    NOT_EQUAL = "not_equal"
+    GREATER_THAN = "greater_than"
+    GREATER_THAN_EQUAL = "greater_than_equal"
+    LESS_THAN = "less_than"
+    LESS_THAN_EQUAL = "less_than_equal"
+    CONTAINS = "contains"
+    NOT_CONTAINS = "not_contains"
+    EMPTY = "empty"
+    NOT_EMPTY = "not_empty"
+    IS_TRUE = "is_true"
+    IS_FALSE = "is_false"
+    LENGTH_GREATER_THAN = "length_greater_than"
+    LENGTH_LESS_THAN = "length_less_than"
+    START_WITH = "start_with"
+    END_WITH = "end_with"
+    IN = "in"
+    NOT_IN = "not_in"
+
+
+class MappingStatus(str, Enum):
+    MAPPED = "mapped"
+    PARTIAL = "partial"
+    UNMAPPABLE = "unmappable"
+    SKIPPED = "skipped"
+
+
+class ErrorStrategy(str, Enum):
+    THROW = "throw"
+    DEFAULT_VALUE = "default_value"
+    FAIL_BRANCH = "fail_branch"

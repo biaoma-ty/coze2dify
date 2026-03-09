@@ -1,0 +1,305 @@
+<div align="center">
+
+# 🔄 coze2dify
+
+**Coze → Dify Workflow Migration & Sync Engine**
+
+[![CI](https://github.com/biaoma-ty/coze2dify/actions/workflows/ci.yml/badge.svg)](https://github.com/biaoma-ty/coze2dify/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-≥3.10-3776AB?logo=python&logoColor=white)](https://python.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](#-docker-deployment)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+<br/>
+
+<img src="https://img.shields.io/badge/Coze-→_Dify-00D4AA?style=for-the-badge&labelColor=3b82f6&color=00d4aa" alt="Coze to Dify" />
+
+<br/><br/>
+
+*将 Coze 工作流自动转换为 Dify DSL 格式，支持可视化对比、增量同步与数据库直写。*
+
+*Automatically convert Coze workflows to Dify DSL format with visual diff, incremental sync, and direct DB writes.*
+
+<br/>
+
+[快速开始](#-quick-start) · [功能特性](#-features) · [架构设计](#-architecture) · [API 文档](#-api-reference) · [开发指南](#-development)
+
+---
+
+</div>
+
+## ✨ Features
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| 🔄 **Workflow Conversion** | ✅ Ready | Coze JSON/YAML → IR → Dify DSL YAML |
+| 📤 **Multi-Source Input** | ✅ Ready | File upload, Coze API, Database direct-read |
+| 📥 **Multi-Target Output** | ✅ Ready | DSL download, Dify DB direct-write |
+| 🗺️ **42-Node Mapping** | ✅ Ready | Complete node type mapping table |
+| 🔀 **Variable Transform** | ✅ Ready | Coze `BlockInputReference` → Dify `variable_selector` |
+| 📊 **Visual Diff** | ✅ Ready | Side-by-side React Flow comparison |
+| 🔍 **Platform Browse** | ✅ Ready | Connect Coze/Dify accounts, browse & select workflows |
+| 🛠️ **Dev Mode** | ✅ Ready | Auto-detect local docker deployments |
+| 🔁 **Incremental Sync** | ✅ Ready | Change detection, conflict resolution, scheduled sync |
+| 📋 **Conversion Report** | ✅ Ready | Mapping stats, warnings, unmappable nodes |
+
+## 🏗️ Architecture
+
+```
+┌─────────────────┐                              ┌──────────────────┐
+│  Coze Source     │                              │  Dify Target     │
+│  ┌────────────┐  │                              │  ┌────────────┐  │
+│  │ JSON/YAML  │──┤                         ┌───→│  │ DSL YAML   │  │
+│  │ API Fetch  │──┤  CozeParser → IR → DifyGen   │  │ DB Write   │  │
+│  │ DB Reader  │──┤       │         │       └───→│  │ API Push   │  │
+│  └────────────┘  │  Validator  Validator        │  └────────────┘  │
+└─────────────────┘                              └──────────────────┘
+```
+
+### Why IR (Intermediate Representation)?
+
+- **Decoupled** — Coze parsing and Dify generation are fully independent
+- **Extensible** — Add LangFlow, Flowise support by adding new Parser/Generator
+- **Testable** — Each layer can be tested independently
+- **Multi-IO** — Parser handles "how to read", Generator handles "how to write"
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python ≥ 3.10
+- Node.js ≥ 18
+- PostgreSQL 16 (optional, for sync/history)
+
+### Option 1: Docker (Recommended)
+
+```bash
+git clone https://github.com/biaoma-ty/coze2dify.git
+cd coze2dify
+docker compose up -d
+```
+
+Services:
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
+| Health Check | http://localhost:8000/health |
+
+### Option 2: Local Development
+
+```bash
+# Backend
+cd backend
+pip install -e ".[dev]"
+uvicorn main:app --reload
+
+# Frontend (another terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+## 📖 API Reference
+
+### Platform Connection
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/platform/coze/connect` | Test Coze PAT token |
+| `POST` | `/api/v1/platform/coze/workflows` | List Coze workflows |
+| `POST` | `/api/v1/platform/dify/connect` | Test Dify API connection |
+| `POST` | `/api/v1/platform/dify/apps` | List Dify apps |
+| `POST` | `/api/v1/platform/db/connect` | Test DB connection |
+
+### Conversion
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/coze/upload` | Upload Coze workflow file |
+| `POST` | `/api/v1/convert` | Execute conversion |
+| `GET`  | `/api/v1/convert/{id}/dsl` | Download Dify DSL |
+| `POST` | `/api/v1/convert/{id}/write-to-dify` | Direct-write to Dify DB |
+
+### Sync
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/sync/execute` | Trigger manual sync |
+| `GET`  | `/api/v1/sync/status` | Get sync status |
+| `GET`  | `/api/v1/sync/history` | Sync history list |
+| `POST` | `/api/v1/sync/diff` | Compare source/target diff |
+
+### Dev Mode
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`  | `/api/v1/devmode/status` | Dev mode status + detected services |
+| `GET`  | `/api/v1/devmode/scan` | Re-scan local deployments |
+| `POST` | `/api/v1/devmode/connect` | One-click connect all detected services |
+
+> Full interactive docs available at `/docs` (Swagger UI) or `/redoc`.
+
+## 🗺️ Node Mapping (42 types)
+
+| Coze Node | Dify Node | Level |
+|-----------|-----------|-------|
+| Entry | `start` | 🟢 Direct |
+| Exit | `end` | 🟢 Direct |
+| LLM | `llm` | 🟡 Partial |
+| Plugin | `tool` | 🟡 Partial |
+| CodeRunner | `code` | 🟡 Partial |
+| KnowledgeRetriever | `knowledge-retrieval` | 🟡 Partial |
+| Selector | `if-else` | 🟡 Partial |
+| HTTPRequester | `http-request` | 🟡 Partial |
+| Loop | `loop` / `iteration` | 🔵 Mode Change |
+| Batch | `iteration` (parallel) | 🔵 Mode Change |
+| IntentDetector | `question-classifier` | 🟡 Partial |
+| TextProcessor | `template-transform` / `code` | 🟡 Partial |
+| VariableAggregator | `variable-aggregator` | 🟢 Direct |
+| VariableAssigner | `assigner` | 🟢 Direct |
+| OutputEmitter | `answer` | 🟢 Direct |
+| SubWorkflow | `tool` (workflow-as-tool) | 🔵 Mode Change |
+| Continue | — | 🔴 Unmappable |
+| Comment | — | ⚪ Skipped |
+
+> See the full 42-type mapping in [`docs/node-mapping.md`](docs/node-mapping.md). Architecture details in [`docs/architecture.md`](docs/architecture.md). API reference in [`docs/api.md`](docs/api.md). Dev Mode guide in [`docs/dev-mode.md`](docs/dev-mode.md).
+
+## 📁 Project Structure
+
+```
+coze2dify/
+├── Makefile                   # Dev commands
+├── docker-compose.yml         # Docker orchestration
+├── .github/workflows/         # CI/CD
+│   └── ci.yml
+├── docs/                      # Documentation
+│   ├── architecture.md        #   IR pipeline design
+│   ├── node-mapping.md        #   42-type mapping reference
+│   ├── api.md                 #   REST API reference
+│   └── dev-mode.md            #   Dev mode guide
+│
+├── backend/
+│   ├── Dockerfile
+│   ├── main.py                # FastAPI entrypoint
+│   ├── config.py              # Settings (env-based)
+│   ├── api/endpoints/         # REST endpoints
+│   │   ├── platform.py        #   Coze/Dify connection
+│   │   ├── devmode.py         #   Local deployment detection
+│   │   ├── conversion.py      #   Workflow conversion
+│   │   ├── sync.py            #   Bi-directional sync
+│   │   └── validation.py      #   Schema validation
+│   ├── core/
+│   │   ├── ir/                # Intermediate Representation
+│   │   ├── coze/              # Coze parser + API client
+│   │   ├── dify/              # Dify generator + DB writer
+│   │   ├── devmode/           # Local deployment detector
+│   │   ├── mapper/            # Node type mapping registry
+│   │   ├── sync/              # Sync engine + conflict resolver
+│   │   └── engine/            # Conversion pipeline
+│   └── tests/
+│
+└── frontend/
+    ├── Dockerfile
+    ├── nginx.conf             # Production nginx config
+    └── src/
+        ├── pages/             # Route pages
+        │   ├── UploadPage     #   Step 1: Source config
+        │   ├── BrowsePage     #   Platform browser
+        │   ├── MappingPage    #   Step 2: Node mapping
+        │   ├── DiffPage       #   Step 3: Visual diff
+        │   ├── ResultPage     #   Step 4: Download/write
+        │   └── SyncPage       #   Sync dashboard
+        ├── components/
+        │   ├── browser/       # Platform connect panel
+        │   ├── devmode/       # Dev mode banner
+        │   ├── graph/         # React Flow nodes
+        │   ├── mapping/       # Mapping table
+        │   └── sync/          # Sync UI
+        ├── store/             # Zustand state
+        ├── api/               # Axios clients
+        └── types/             # TypeScript types
+```
+
+## 🛠️ Development
+
+### Make Commands
+
+```bash
+make help            # Show all available commands
+make install         # Install all dependencies (backend + frontend)
+make dev             # Start backend + frontend dev servers
+make dev-backend     # Start backend only
+make dev-frontend    # Start frontend only
+make build           # Production build
+make test            # Run all tests (pytest + tsc)
+make lint            # Lint all (ruff + tsc)
+make format          # Auto-format backend (ruff)
+make check           # Full check: lint + test + build
+make docker-up       # Start via Docker Compose
+make docker-down     # Stop Docker services
+make docker-build    # Build Docker images
+make docker-logs     # Tail Docker logs
+make clean           # Clean build artifacts
+```
+
+### Manual Setup
+
+```bash
+# Backend
+cd backend
+pip install -e ".[dev]"
+uvicorn main:app --reload --port 8000
+
+# Frontend (another terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COZE2DIFY_DATABASE_URL` | `postgresql://localhost:5432/coze2dify` | Project DB |
+| `COZE2DIFY_COZE_API_BASE` | `https://api.coze.com` | Coze API endpoint |
+| `COZE2DIFY_COZE_ACCESS_TOKEN` | — | Coze PAT token |
+| `COZE2DIFY_DIFY_API_BASE` | — | Dify instance URL |
+| `COZE2DIFY_DIFY_API_KEY` | — | Dify API key |
+| `COZE2DIFY_DIFY_DATABASE_URL` | — | Dify PostgreSQL URL |
+| `COZE2DIFY_COZE_DATABASE_URL` | — | Coze PostgreSQL URL |
+| `COZE2DIFY_DEV_MODE` | `false` | Enable local deployment detection |
+
+## 🔧 CI/CD
+
+GitHub Actions pipeline runs on every push and PR:
+
+- **Backend**: Python 3.10/3.11/3.12 × lint (ruff) + unit tests (pytest)
+- **Frontend**: Node 18/20 × typecheck (tsc) + build (vite)
+- **Docker**: Build validation for both services
+
+See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for details.
+
+## 📄 License
+
+Apache License 2.0
+
+---
+
+<div align="center">
+
+**Built with** &nbsp;
+![FastAPI](https://img.shields.io/badge/-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)
+![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=black&style=flat-square)
+![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=typescript&logoColor=white&style=flat-square)
+![PostgreSQL](https://img.shields.io/badge/-PostgreSQL-4169E1?logo=postgresql&logoColor=white&style=flat-square)
+![Vite](https://img.shields.io/badge/-Vite-646CFF?logo=vite&logoColor=white&style=flat-square)
+![Docker](https://img.shields.io/badge/-Docker-2496ED?logo=docker&logoColor=white&style=flat-square)
+
+</div>
