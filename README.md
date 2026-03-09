@@ -109,6 +109,7 @@ Services:
 # Backend
 cd backend
 pip install -e ".[dev]"
+python -m alembic upgrade head
 uvicorn main:app --reload
 
 # Frontend (another terminal)
@@ -116,6 +117,8 @@ cd frontend
 npm install
 npm run dev
 ```
+
+If you already have a local `coze2dify.db` that was created by the old startup-time `create_all()` path, run `python -m alembic stamp head` once before applying future migrations.
 
 ## 📖 API Reference
 
