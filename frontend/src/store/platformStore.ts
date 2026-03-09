@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   CozeWorkspace,
   CozeWorkflowItem,
@@ -56,7 +57,24 @@ interface PlatformState {
   reset: () => void;
 }
 
-export const usePlatformStore = create<PlatformState>((set) => ({
+type PlatformStoreData = Omit<
+  PlatformState,
+  | "setCozeCredentials"
+  | "setCozeConnected"
+  | "setCozeSelectedSpace"
+  | "setCozeWorkflows"
+  | "setDifyCredentials"
+  | "setDifyConnected"
+  | "setDifyApps"
+  | "setDifySelectedApp"
+  | "setCozeDb"
+  | "setDifyDb"
+  | "setDevMode"
+  | "setActiveTab"
+  | "reset"
+>;
+
+const initialState: PlatformStoreData = {
   cozeToken: "",
   cozeApiBase: "https://api.coze.com",
   cozeConnected: false,
@@ -80,7 +98,11 @@ export const usePlatformStore = create<PlatformState>((set) => ({
   detectedDify: [],
 
   activeTab: "coze",
+};
 
+export const usePlatformStore = create<PlatformState>()(
+  persist((set) => ({
+    ...initialState,
   setCozeCredentials: (token, apiBase) =>
     set({ cozeToken: token, cozeApiBase: apiBase }),
 
@@ -112,25 +134,9 @@ export const usePlatformStore = create<PlatformState>((set) => ({
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   reset: () =>
-    set({
-      cozeToken: "",
-      cozeApiBase: "https://api.coze.com",
-      cozeConnected: false,
-      cozeWorkspaces: [],
-      cozeSelectedSpace: "",
-      cozeWorkflows: [],
-      difyApiBase: "",
-      difyApiKey: "",
-      difyConnected: false,
-      difyApps: [],
-      difySelectedAppId: "",
-      cozeDbUrl: "",
-      cozeDbConnected: false,
-      difyDbUrl: "",
-      difyDbConnected: false,
-      devModeEnabled: false,
-      detectedCoze: [],
-      detectedDify: [],
-      activeTab: "coze",
-    }),
-}));
+    set(initialState),
+  }), {
+    name: "coze2dify-platform",
+    storage: createJSONStorage(() => sessionStorage),
+  }),
+);
