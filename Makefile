@@ -1,4 +1,4 @@
-.PHONY: help install dev build test lint format clean docker-up docker-down docker-build ci-local install-githooks
+.PHONY: help install dev build test lint format clean docker-up docker-down docker-build ci-local e2e-smoke install-githooks
 
 # ── Default ──────────────────────────────────────────
 help: ## Show this help
@@ -54,6 +54,9 @@ check: lint test build ## Run all checks (lint + test + build)
 
 ci-local: ## Run the local CI gate before pushing (Python matrix import + lint + tests + build)
 	./scripts/ci-local.sh
+
+e2e-smoke: ## Run the browser-level migration smoke gate against an ephemeral Dify stack
+	./scripts/e2e-smoke.sh
 
 install-githooks: ## Install repository git hooks (pre-push runs local CI gate)
 	git config core.hooksPath .githooks

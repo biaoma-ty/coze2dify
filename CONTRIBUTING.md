@@ -28,6 +28,21 @@ make install
 - backend lint (`ruff check`)
 - backend unit tests (`pytest`)
 - frontend production build (`npm run build`)
+- browser-level migration smoke against an ephemeral Dify stack (`make e2e-smoke`)
+
+The smoke gate uses:
+
+- fixture: `e2e/fixtures/minimal-workflow.json`
+- browser automation: `frontend/e2e/smoke.spec.ts`
+- isolated Dify runtime: `e2e/dify/docker-compose.yml`
+
+Local reproduction:
+
+```bash
+make e2e-smoke
+```
+
+This requires Docker, frontend dependencies, and a Python environment with `backend[dev]` installed. The smoke script installs Playwright Chromium automatically if needed.
 
 If you want Git to enforce this automatically, run:
 

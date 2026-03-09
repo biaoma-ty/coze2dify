@@ -1,0 +1,45 @@
+{
+  "nodes": [
+    {
+      "id": "start-node",
+      "type": "1",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "data": {
+        "outputs": [
+          {
+            "type": "string",
+            "name": "input",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "end-node",
+      "type": "2",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 0
+        }
+      },
+      "data": {
+        "inputs": {
+          "terminatePlan": "useAnswerContent"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeID": "start-node",
+      "targetNodeID": "end-node"
+    }
+  ],
+  "versions": {}
+}
