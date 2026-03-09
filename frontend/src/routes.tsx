@@ -6,6 +6,7 @@ import ResultPage from "./pages/ResultPage";
 import SyncPage from "./pages/SyncPage";
 import SyncHistoryPage from "./pages/SyncHistoryPage";
 import BrowsePage from "./pages/BrowsePage";
+import ConversionHistoryPage from "./pages/ConversionHistoryPage";
 
 export function AppRoutes() {
   return (
@@ -17,6 +18,7 @@ export function AppRoutes() {
       <Route path="/result/:conversionId" element={<ResultPage />} />
       <Route path="/sync" element={<SyncPage />} />
       <Route path="/sync/history" element={<SyncHistoryPage />} />
+      <Route path="/history" element={<ConversionHistoryPage />} />
     </Routes>
   );
 }

@@ -1,5 +1,5 @@
 import client from "./client";
-import type { ConversionDetail, ConversionResult } from "../types/ir";
+import type { ConversionDetail, ConversionHistoryResponse, ConversionResult } from "../types/ir";
 
 export async function convertWorkflow(file: File): Promise<ConversionResult> {
   const form = new FormData();
@@ -27,6 +27,14 @@ export async function convertWorkflowFromDb(params: {
 
 export async function getConversion(conversionId: string): Promise<ConversionDetail> {
   const resp = await client.get<ConversionDetail>(`/convert/${conversionId}`);
+  return resp.data;
+}
+
+export async function listConversionHistory(params: {
+  limit?: number;
+  offset?: number;
+} = {}): Promise<ConversionHistoryResponse> {
+  const resp = await client.get<ConversionHistoryResponse>("/convert", { params });
   return resp.data;
 }
 

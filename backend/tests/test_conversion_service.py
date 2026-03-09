@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 from core.engine.conversion_service import ConversionService
 from db.database import Base
+from db.models import MigrationTask, SyncConfig
 
 
 MINIMAL_COZE_CANVAS = {
@@ -56,3 +57,69 @@ def test_convert_uploaded_file_persists_artifacts(tmp_path) -> None:
     assert persisted["dsl"]["workflow"]["graph"]["nodes"]
     assert persisted["dsl"]["workflow"]["graph"]["edges"]
     assert "workflow:" in yaml_output
+
+
+def test_list_conversions_returns_paginated_history_without_sync_tasks(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-test.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    service = ConversionService()
+
+    with session_factory() as db:
+        first = service.convert_uploaded_file(
+            db,
+            json.dumps(MINIMAL_COZE_CANVAS).encode(),
+            "first.json",
+        )
+        second = service.convert_uploaded_file(
+            db,
+            json.dumps(MINIMAL_COZE_CANVAS).encode(),
+            "second.json",
+        )
+
+        latest_task = db.get(MigrationTask, int(second["conversion_id"]))
+        assert latest_task is not None
+        latest_snapshot = dict(latest_task.ir_snapshot or {})
+        latest_snapshot["write_result"] = {
+            "app_id": "app-history-123",
+            "mode": "create",
+            "db_url": "postgresql://dify.example/db",
+            "written_at": "2026-03-09T12:34:56+00:00",
+        }
+        latest_task.ir_snapshot = latest_snapshot
+        latest_task.status = "written"
+        db.add(latest_task)
+
+        sync_config = SyncConfig(
+            name="Nightly sync",
+            coze_db_url="postgresql://coze.example/db",
+            dify_db_url="postgresql://dify.example/db",
+        )
+        db.add(sync_config)
+        db.flush()
+        db.add(
+            MigrationTask(
+                sync_config_id=sync_config.id,
+                source_type="database",
+                source_workflow_id="sync-only",
+                source_workflow_name="Sync-only workflow",
+                status="converted",
+                ir_snapshot={"write_result": None},
+                report={"total_nodes": 0},
+            )
+        )
+        db.commit()
+
+        first_page = service.list_conversions(db, limit=1, offset=0)
+        second_page = service.list_conversions(db, limit=1, offset=1)
+
+    assert first_page["total"] == 2
+    assert [item["conversion_id"] for item in first_page["items"]] == [second["conversion_id"]]
+    assert first_page["items"][0]["status"] == "written"
+    assert first_page["items"][0]["write_result"]["app_id"] == "app-history-123"
+    assert first_page["items"][0]["report_summary"]["total_nodes"] == 2
+    assert first_page["items"][0]["report_summary"]["mapped_count"] >= 0
+    assert [item["conversion_id"] for item in second_page["items"]] == [first["conversion_id"]]

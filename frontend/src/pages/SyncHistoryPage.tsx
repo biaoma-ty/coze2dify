@@ -63,7 +63,11 @@ export default function SyncHistoryPage() {
         </p>
       </div>
 
-      {error && <div className="alert alert--error" style={{ marginBottom: 16 }}>{error}</div>}
+      {error ? (
+        <div className="alert alert--error" style={{ marginBottom: 16 }}>
+          {error}
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="empty-state card">
@@ -72,9 +76,13 @@ export default function SyncHistoryPage() {
         </div>
       ) : (
         <>
-          <SyncHistoryTable items={history} selectedId={selectedRun?.id} onSelect={handleSelect} />
+          <SyncHistoryTable
+            items={history}
+            selectedId={selectedRun?.id}
+            onSelect={handleSelect}
+          />
 
-          {selectedRun && (
+          {selectedRun ? (
             <div className="card" style={{ marginTop: 20, padding: 24 }}>
               <div className="section-title">Selected Run</div>
               <p className="section-subtitle">
@@ -89,18 +97,34 @@ export default function SyncHistoryPage() {
                   marginTop: 18,
                 }}
               >
-                <HistorySummary label="Created" value={selectedRun.summary.created} tone="var(--c-green)" />
-                <HistorySummary label="Updated" value={selectedRun.summary.updated} tone="var(--c-blue)" />
-                <HistorySummary label="Skipped" value={selectedRun.summary.skipped} tone="var(--c-slate)" />
+                <HistorySummary
+                  label="Created"
+                  value={selectedRun.summary.created}
+                  tone="var(--c-green)"
+                />
+                <HistorySummary
+                  label="Updated"
+                  value={selectedRun.summary.updated}
+                  tone="var(--c-blue)"
+                />
+                <HistorySummary
+                  label="Skipped"
+                  value={selectedRun.summary.skipped}
+                  tone="var(--c-slate)"
+                />
                 <HistorySummary
                   label="Blocked"
                   value={selectedRun.summary.unsupported + selectedRun.summary.conflicts}
                   tone="var(--c-amber)"
                 />
-                <HistorySummary label="Failed" value={selectedRun.summary.failed} tone="var(--c-red)" />
+                <HistorySummary
+                  label="Failed"
+                  value={selectedRun.summary.failed}
+                  tone="var(--c-red)"
+                />
               </div>
             </div>
-          )}
+          ) : null}
         </>
       )}
     </div>
@@ -125,7 +149,9 @@ function HistorySummary({
 }) {
   return (
     <div className="stat-card">
-      <div className="stat-card__value" style={{ color: tone }}>{value}</div>
+      <div className="stat-card__value" style={{ color: tone }}>
+        {value}
+      </div>
       <div className="stat-card__label">{label}</div>
     </div>
   );
