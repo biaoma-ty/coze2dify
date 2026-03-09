@@ -7,9 +7,11 @@ from sqlalchemy.orm import sessionmaker
 
 from api.endpoints import sync as sync_endpoints
 from api.router import api_router
+from core.sync.conflict_resolver import ConflictStrategy
+from core.sync.scheduler import SyncScheduler
 from core.sync.sync_engine import SyncEngine
 from db.database import Base, get_db
-from db.models import MigrationTask, SyncHistory
+from db.models import MigrationTask, SyncConfig, SyncHistory
 
 
 def _utcnow() -> datetime:
@@ -163,3 +165,170 @@ def test_sync_execute_endpoint_persists_history_and_exposes_detail(tmp_path, mon
     assert histories[0].workflows_synced == 1
     assert len(tasks) == 1
     assert tasks[0].sync_config_id == histories[0].sync_config_id
+
+
+def test_sync_schedule_diff_and_conflict_endpoints_are_wired(tmp_path, monkeypatch) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-api-extra.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    def override_get_db():
+        with session_factory() as db:
+            yield db
+
+    class StubSyncEngine:
+        def preview_diff(self, db, config):
+            return {
+                "config_id": config.id,
+                "status": "partial",
+                "summary": {
+                    "created": 1,
+                    "updated": 0,
+                    "failed": 0,
+                    "skipped": 0,
+                    "unsupported": 0,
+                    "conflicts": 1,
+                },
+                "items": [
+                    {
+                        "action": "create",
+                        "status": "created",
+                        "source_workflow_id": "wf-create",
+                        "source_workflow_name": "Create Flow",
+                        "target_app_id": None,
+                        "conversion_id": None,
+                        "message": "Will create on next sync.",
+                    }
+                ],
+            }
+
+        def resolve_conflict(self, db, history, *, conflict_id: str, strategy: ConflictStrategy):
+            payload = dict(history.conflicts_resolved)
+            summary = dict(payload["summary"])
+            item = dict(payload["items"][0])
+            item["status"] = "skipped"
+            item["action"] = "keep"
+            item["resolution"] = {
+                "strategy": strategy.value,
+                "status": "kept_target",
+            }
+            summary["conflicts"] = 0
+            summary["skipped"] = 1
+            history.conflicts_count = 0
+            history.status = "completed"
+            history.conflicts_resolved = {
+                "summary": summary,
+                "items": [item],
+            }
+            db.add(history)
+            db.commit()
+            db.refresh(history)
+            return {
+                "id": str(history.id),
+                "sync_config_id": history.sync_config_id,
+                "sync_config_name": history.sync_config.name if history.sync_config else None,
+                "trigger_type": history.trigger_type,
+                "status": history.status,
+                "started_at": history.started_at.isoformat() if history.started_at else None,
+                "completed_at": history.completed_at.isoformat() if history.completed_at else None,
+                "workflows_synced": history.workflows_synced,
+                "workflows_failed": history.workflows_failed,
+                "conflicts_count": history.conflicts_count,
+                "summary": history.conflicts_resolved["summary"],
+                "items": history.conflicts_resolved["items"],
+            }
+
+        def execute_sync(self, db, config, *, trigger_type: str = "manual"):
+            return {"id": "unused", "status": "completed"}
+
+    app = FastAPI()
+    app.include_router(api_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = override_get_db
+
+    scheduler = SyncScheduler()
+    monkeypatch.setattr(sync_endpoints, "sync_engine", StubSyncEngine())
+    monkeypatch.setattr(sync_endpoints, "sync_scheduler", scheduler)
+
+    client = TestClient(app)
+    schedule_payload = {
+        "name": "Nightly Sync",
+        "coze_db_url": "postgresql://coze.test/app",
+        "dify_db_url": "postgresql://dify.test/app",
+        "cron_expression": "0 3 * * *",
+    }
+
+    schedule_response = client.post("/api/v1/sync/schedule", json=schedule_payload)
+    assert schedule_response.status_code == 200
+    schedule_data = schedule_response.json()
+    config_id = schedule_data["config"]["id"]
+    assert schedule_data["config"]["sync_mode"] == "scheduled"
+    assert schedule_data["schedule"]["config_id"] == config_id
+
+    diff_response = client.post(
+        "/api/v1/sync/diff",
+        json={
+            "config_id": config_id,
+            "name": "Nightly Sync",
+            "coze_db_url": "postgresql://coze.test/app",
+            "dify_db_url": "postgresql://dify.test/app",
+        },
+    )
+    assert diff_response.status_code == 200
+    assert diff_response.json()["summary"]["created"] == 1
+
+    with session_factory() as db:
+        config = db.get(SyncConfig, config_id)
+        history = SyncHistory(
+            sync_config_id=config_id,
+            trigger_type="manual",
+            status="partial",
+            conflicts_count=1,
+            conflicts_resolved={
+                "summary": {
+                    "created": 0,
+                    "updated": 0,
+                    "failed": 0,
+                    "skipped": 0,
+                    "unsupported": 0,
+                    "conflicts": 1,
+                },
+                "items": [
+                    {
+                        "action": "update",
+                        "status": "conflict",
+                        "source_workflow_id": "wf-conflict",
+                        "source_workflow_name": "Conflict Flow",
+                        "target_app_id": "app-existing",
+                        "conversion_id": None,
+                        "message": "Resolve me.",
+                    }
+                ],
+            },
+            started_at=_utcnow(),
+        )
+        db.add(history)
+        db.commit()
+        db.refresh(history)
+        history_id = history.id
+        assert config is not None
+
+    conflict_response = client.post(
+        "/api/v1/sync/conflicts/wf-conflict/resolve",
+        json={"history_id": str(history_id), "strategy": "target_wins"},
+    )
+    assert conflict_response.status_code == 200
+    assert conflict_response.json()["items"][0]["status"] == "skipped"
+
+    status_response = client.get("/api/v1/sync/status")
+    assert status_response.status_code == 200
+    assert status_response.json()["scheduled_jobs"][0]["config_id"] == config_id
+
+    cancel_response = client.delete(f"/api/v1/sync/schedule?config_id={config_id}")
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["cancelled"] is True
+    assert cancel_response.json()["config"]["enabled"] is False
+
+    scheduler.shutdown()

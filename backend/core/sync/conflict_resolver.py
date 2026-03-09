@@ -21,8 +21,7 @@ class ConflictResolver:
         strategy: ConflictStrategy = ConflictStrategy.MANUAL,
     ) -> dict[str, Any] | None:
         if strategy == ConflictStrategy.SOURCE_WINS:
-            return source_data
-        elif strategy == ConflictStrategy.TARGET_WINS:
+            return dict(source_data)
+        if strategy == ConflictStrategy.TARGET_WINS:
             return None  # Skip, keep target
-        else:
-            return None  # Manual: needs user intervention
+        return None  # Manual: needs user intervention

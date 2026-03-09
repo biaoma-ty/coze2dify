@@ -181,7 +181,11 @@ Set up scheduled sync (cron expression).
 
 ### `DELETE /sync/schedule`
 
-Cancel scheduled sync.
+Cancel scheduled sync for a persisted config.
+
+**Query params:**
+
+- `config_id`: sync config primary key
 
 ### `POST /sync/diff`
 
@@ -194,6 +198,7 @@ Manually resolve a sync conflict.
 **Request:**
 ```json
 {
+  "history_id": "12",
   "strategy": "source_wins"
 }
 ```
