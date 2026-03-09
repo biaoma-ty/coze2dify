@@ -20,6 +20,7 @@ interface PlatformState {
   difyApiKey: string;
   difyConnected: boolean;
   difyApps: DifyAppItem[];
+  difySelectedAppId: string;
 
   /* ── DB ── */
   cozeDbUrl: string;
@@ -44,6 +45,7 @@ interface PlatformState {
   setDifyCredentials: (apiBase: string, apiKey: string) => void;
   setDifyConnected: (connected: boolean) => void;
   setDifyApps: (apps: DifyAppItem[]) => void;
+  setDifySelectedApp: (appId: string) => void;
 
   setCozeDb: (url: string, connected: boolean) => void;
   setDifyDb: (url: string, connected: boolean) => void;
@@ -66,6 +68,7 @@ export const usePlatformStore = create<PlatformState>((set) => ({
   difyApiKey: "",
   difyConnected: false,
   difyApps: [],
+  difySelectedAppId: "",
 
   cozeDbUrl: "",
   cozeDbConnected: false,
@@ -95,6 +98,8 @@ export const usePlatformStore = create<PlatformState>((set) => ({
 
   setDifyApps: (apps) => set({ difyApps: apps }),
 
+  setDifySelectedApp: (appId) => set({ difySelectedAppId: appId }),
+
   setCozeDb: (url, connected) =>
     set({ cozeDbUrl: url, cozeDbConnected: connected }),
 
@@ -118,6 +123,7 @@ export const usePlatformStore = create<PlatformState>((set) => ({
       difyApiKey: "",
       difyConnected: false,
       difyApps: [],
+      difySelectedAppId: "",
       cozeDbUrl: "",
       cozeDbConnected: false,
       difyDbUrl: "",

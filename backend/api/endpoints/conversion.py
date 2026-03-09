@@ -1,65 +1,140 @@
-from fastapi import APIRouter, File, UploadFile
-from fastapi.responses import Response
+from __future__ import annotations
 
-from core.engine.converter import ConversionEngine
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
+
+from config import settings
+from core.engine.conversion_service import ConversionService
+from db.database import get_db
 
 router = APIRouter()
-engine = ConversionEngine()
+service = ConversionService()
 
-# In-memory store for conversion results (replace with DB in production)
-_conversions: dict[str, dict] = {}
-_counter = 0
+
+class ApiConversionRequest(BaseModel):
+    access_token: str
+    workflow_id: str
+    api_base: str = "https://api.coze.com"
+
+
+class DbConversionRequest(BaseModel):
+    db_url: str
+    workflow_id: str
+
+
+class WriteToDifyRequest(BaseModel):
+    db_url: str | None = None
+    app_id: str | None = None
 
 
 @router.post("")
-async def convert_workflow(file: UploadFile = File(...)):
-    global _counter
+async def convert_workflow(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
     content = await file.read()
-    fmt = "yaml" if file.filename and file.filename.endswith((".yaml", ".yml")) else "json"
+    _ensure_upload_size(content)
+    try:
+        conversion = service.convert_uploaded_file(db, content, file.filename)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"conversion_id": conversion["conversion_id"], "report": conversion["report"]}
 
-    dsl, report = engine.convert_from_json(content, fmt)
-    _counter += 1
-    conversion_id = str(_counter)
 
-    yaml_output = engine.dify_generator.to_yaml(dsl)
-    _conversions[conversion_id] = {
-        "dsl": dsl.model_dump(),
-        "yaml": yaml_output,
-        "report": report.model_dump(),
-    }
+@router.post("/from-api")
+async def convert_workflow_from_api(
+    req: ApiConversionRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        conversion = await service.convert_from_api(
+            db,
+            access_token=req.access_token,
+            workflow_id=req.workflow_id,
+            api_base=req.api_base,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"conversion_id": conversion["conversion_id"], "report": conversion["report"]}
 
-    return {"conversion_id": conversion_id, "report": report.model_dump()}
+
+@router.post("/from-db")
+async def convert_workflow_from_db(
+    req: DbConversionRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        conversion = service.convert_from_db(db, db_url=req.db_url, workflow_id=req.workflow_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"conversion_id": conversion["conversion_id"], "report": conversion["report"]}
 
 
 @router.get("/{conversion_id}")
-async def get_conversion(conversion_id: str):
-    data = _conversions.get(conversion_id)
-    if not data:
-        return {"error": "Conversion not found"}
-    return {"dsl": data["dsl"], "report": data["report"]}
+async def get_conversion(
+    conversion_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.get_conversion(db, conversion_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{conversion_id}/dsl")
-async def download_dsl(conversion_id: str):
-    data = _conversions.get(conversion_id)
-    if not data:
-        return {"error": "Conversion not found"}
+async def download_dsl(
+    conversion_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        yaml_output = service.get_yaml(db, conversion_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     return Response(
-        content=data["yaml"],
+        content=yaml_output,
         media_type="application/x-yaml",
         headers={"Content-Disposition": f"attachment; filename=workflow_{conversion_id}.yml"},
     )
 
 
 @router.get("/{conversion_id}/report")
-async def get_report(conversion_id: str):
-    data = _conversions.get(conversion_id)
-    if not data:
-        return {"error": "Conversion not found"}
-    return data["report"]
+async def get_report(
+    conversion_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.get_conversion(db, conversion_id)["report"]
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/{conversion_id}/write-to-dify")
-async def write_to_dify(conversion_id: str):
-    # TODO: Implement DifyDbWriter
-    return {"status": "not_implemented"}
+async def write_to_dify(
+    conversion_id: str,
+    req: WriteToDifyRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.write_to_dify(db, conversion_id, db_url=req.db_url, app_id=req.app_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+def _ensure_upload_size(content: bytes) -> None:
+    size_limit = settings.max_upload_size_mb * 1024 * 1024
+    if len(content) > size_limit:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Upload exceeds {settings.max_upload_size_mb} MB limit",
+        )

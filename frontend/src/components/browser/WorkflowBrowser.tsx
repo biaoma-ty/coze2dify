@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { usePlatformStore } from "../../store/platformStore";
+import { useWorkflowStore } from "../../store/workflowStore";
 import {
   listCozeWorkflows,
   listDifyApps,
 } from "../../api/platform";
+import { convertWorkflowFromApi } from "../../api/conversion";
 import type { CozeWorkflowItem, DifyAppItem } from "../../types/platform";
 
 export default function WorkflowBrowser() {
+  const navigate = useNavigate();
   const {
     activeTab,
     setActiveTab,
@@ -23,10 +27,14 @@ export default function WorkflowBrowser() {
     difyApiKey,
     difyApps,
     setDifyApps,
+    difySelectedAppId,
+    setDifySelectedApp,
   } = usePlatformStore();
+  const { setConversion, setSourceMethod } = useWorkflowStore();
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const connected = activeTab === "coze" ? cozeConnected : difyConnected;
 
@@ -169,6 +177,12 @@ export default function WorkflowBrowser() {
 
       {/* Content */}
       <div style={{ padding: 20 }}>
+        {actionError && (
+          <div className="alert alert--error" style={{ marginBottom: 16 }}>
+            {actionError}
+          </div>
+        )}
+
         {!connected ? (
           <EmptyState icon="🔗" text={`Connect to ${activeTab === "coze" ? "Coze" : "Dify"} above to browse workflows`} />
         ) : loading ? (
@@ -183,11 +197,34 @@ export default function WorkflowBrowser() {
             />
           ) : (
             <WorkflowList items={filteredCoze.map((w) => ({
-              id: w.bot_id,
+              id: w.workflow_id || w.bot_id,
               name: w.bot_name,
               description: w.description,
               meta: w.publish_time,
-            }))} />
+              selected: false,
+              actionLabel: "Migrate →",
+            }))} onSelect={async (item) => {
+              setLoading(true);
+              setActionError("");
+              try {
+                const result = await convertWorkflowFromApi({
+                  access_token: cozeToken,
+                  api_base: cozeApiBase,
+                  workflow_id: item.id,
+                });
+                setSourceMethod("api");
+                setConversion(result.conversion_id, result.report);
+                navigate(`/diff/${result.conversion_id}`);
+              } catch (e: any) {
+                setActionError(
+                  e?.response?.data?.detail ||
+                    e?.message ||
+                    "Failed to fetch workflow from Coze API. If this item is a bot record, use Upload > Coze API with the workflow ID.",
+                );
+              } finally {
+                setLoading(false);
+              }
+            }} />
           )
         ) : filteredDify.length === 0 ? (
           <EmptyState icon="📂" text="No apps found" />
@@ -197,7 +234,12 @@ export default function WorkflowBrowser() {
             name: a.name,
             description: a.description,
             meta: `${a.mode} · ${a.updated_at}`,
-          }))} />
+            selected: difySelectedAppId === a.app_id,
+            actionLabel: difySelectedAppId === a.app_id ? "Selected" : "Use as Target",
+          }))} onSelect={(item) => {
+            setActionError("");
+            setDifySelectedApp(item.id);
+          }} />
         )}
       </div>
     </div>
@@ -220,9 +262,17 @@ interface WorkflowListItem {
   name: string;
   description: string;
   meta: string;
+  selected: boolean;
+  actionLabel: string;
 }
 
-function WorkflowList({ items }: { items: WorkflowListItem[] }) {
+function WorkflowList({
+  items,
+  onSelect,
+}: {
+  items: WorkflowListItem[];
+  onSelect: (item: WorkflowListItem) => void | Promise<void>;
+}) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {items.map((item) => (
@@ -235,6 +285,7 @@ function WorkflowList({ items }: { items: WorkflowListItem[] }) {
             alignItems: "center",
             justifyContent: "space-between",
             cursor: "pointer",
+            borderColor: item.selected ? "var(--c-accent)" : undefined,
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -289,15 +340,14 @@ function WorkflowList({ items }: { items: WorkflowListItem[] }) {
               </span>
             )}
             <button
-              className="btn btn-primary"
+              className={item.selected ? "btn btn-secondary" : "btn btn-primary"}
               style={{ padding: "6px 16px", fontSize: "0.75rem" }}
               onClick={(e) => {
                 e.stopPropagation();
-                // TODO: trigger workflow fetch + conversion flow
-                alert(`Selected: ${item.id}`);
+                void onSelect(item);
               }}
             >
-              Select →
+              {item.actionLabel}
             </button>
           </div>
         </div>

@@ -5,7 +5,9 @@ import FileUpload from "../components/upload/FileUpload";
 import CozeApiConfig from "../components/upload/CozeApiConfig";
 import DbConnectionConfig from "../components/upload/DbConnectionConfig";
 import { useWorkflowStore } from "../store/workflowStore";
-import { convertWorkflow } from "../api/conversion";
+import { convertWorkflow, convertWorkflowFromApi, convertWorkflowFromDb } from "../api/conversion";
+import { testDbConnection } from "../api/platform";
+import { usePlatformStore } from "../store/platformStore";
 
 type SourceTab = "file" | "api" | "database";
 
@@ -20,17 +22,75 @@ export default function UploadPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { setConversion } = useWorkflowStore();
+  const { setConversion, setSourceMethod } = useWorkflowStore();
+  const { setCozeCredentials, setCozeDb } = usePlatformStore();
 
   const handleFileSelected = async (file: File) => {
     setLoading(true);
     setError(null);
     try {
       const result = await convertWorkflow(file);
+      setSourceMethod("upload");
       setConversion(result.conversion_id, result.report);
       navigate(`/diff/${result.conversion_id}`);
     } catch (e: any) {
-      setError(e?.message || "Upload failed");
+      setError(e?.response?.data?.detail || e?.message || "Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApiSubmit = async (params: { accessToken: string; workflowId: string; apiBase: string }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await convertWorkflowFromApi({
+        access_token: params.accessToken,
+        workflow_id: params.workflowId,
+        api_base: params.apiBase,
+      });
+      setCozeCredentials(params.accessToken, params.apiBase);
+      setSourceMethod("api");
+      setConversion(result.conversion_id, result.report);
+      navigate(`/diff/${result.conversion_id}`);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || e?.message || "API fetch failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDbTest = async (url: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await testDbConnection("coze", url);
+      if (!result.connected) {
+        throw new Error("Database connection failed");
+      }
+      setCozeDb(url, true);
+    } catch (e: any) {
+      setCozeDb(url, false);
+      setError(e?.response?.data?.detail || e?.message || "Database connection failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDbSubmit = async ({ url, workflowId }: { url: string; workflowId: string }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await convertWorkflowFromDb({
+        db_url: url,
+        workflow_id: workflowId,
+      });
+      setCozeDb(url, true);
+      setSourceMethod("database");
+      setConversion(result.conversion_id, result.report);
+      navigate(`/diff/${result.conversion_id}`);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || e?.message || "Database fetch failed");
     } finally {
       setLoading(false);
     }
@@ -63,8 +123,16 @@ export default function UploadPage() {
       {/* Tab Content */}
       <div className="fade-in" key={tab}>
         {tab === "file" && <FileUpload onFileSelected={handleFileSelected} />}
-        {tab === "api" && <CozeApiConfig onSubmit={(t, id) => alert(`API fetch: ${id}`)} />}
-        {tab === "database" && <DbConnectionConfig label="Coze" onTest={(url) => alert(`Test: ${url}`)} />}
+        {tab === "api" && <CozeApiConfig onSubmit={handleApiSubmit} />}
+        {tab === "database" && (
+          <DbConnectionConfig
+            label="Coze"
+            workflowLabel="Workflow ID"
+            onTest={handleDbTest}
+            onSubmit={handleDbSubmit}
+            submitLabel="Import Workflow"
+          />
+        )}
       </div>
 
       {/* Loading State */}

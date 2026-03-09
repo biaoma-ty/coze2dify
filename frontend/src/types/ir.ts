@@ -39,3 +39,23 @@ export interface ConversionResult {
   conversion_id: string;
   report: ConversionReport;
 }
+
+export interface WriteResult {
+  app_id: string;
+  mode: "create" | "update";
+  db_url?: string;
+  written_at?: string;
+}
+
+export interface ConversionDetail {
+  conversion_id: string;
+  status: string;
+  source_type: string;
+  source_workflow_id: string;
+  source_workflow_name: string;
+  dsl: Record<string, unknown>;
+  report: ConversionReport;
+  write_result: WriteResult | null;
+  created_at: string | null;
+  completed_at: string | null;
+}

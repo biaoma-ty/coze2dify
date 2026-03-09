@@ -1,9 +1,13 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, TEXT, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class SyncConfig(Base):
@@ -17,8 +21,8 @@ class SyncConfig(Base):
     sync_mode: Mapped[str] = mapped_column(String(50), default="manual")
     cron_expression: Mapped[str | None] = mapped_column(String(100), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     tasks: Mapped[list["MigrationTask"]] = relationship(back_populates="sync_config")
     histories: Mapped[list["SyncHistory"]] = relationship(back_populates="sync_config")
@@ -37,7 +41,7 @@ class MigrationTask(Base):
     dify_dsl: Mapped[str | None] = mapped_column(TEXT, nullable=True)
     report: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(TEXT, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     sync_config: Mapped[SyncConfig | None] = relationship(back_populates="tasks")
@@ -53,7 +57,7 @@ class SyncHistory(Base):
     workflows_failed: Mapped[int] = mapped_column(Integer, default=0)
     conflicts_count: Mapped[int] = mapped_column(Integer, default=0)
     conflicts_resolved: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="running")
 

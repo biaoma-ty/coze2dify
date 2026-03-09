@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     debug: bool = True
 
     # Project database (migration history, sync config)
-    database_url: str = "postgresql://localhost:5432/coze2dify"
+    database_url: str = "sqlite:///./coze2dify.db"
 
     # Coze API
     coze_api_base: str = "https://api.coze.com"
