@@ -244,7 +244,9 @@ def _scheduled_sync_callback(config_id: int):
     return _run
 
 
-def restore_schedules(*, session_factory=SessionLocal, scheduler: SyncScheduler | None = None) -> list[dict[str, object]]:
+def restore_schedules(
+    *, session_factory=SessionLocal, scheduler: SyncScheduler | None = None
+) -> list[dict[str, object]]:
     active_scheduler = scheduler or sync_scheduler
     restored_jobs: list[dict[str, object]] = []
 
