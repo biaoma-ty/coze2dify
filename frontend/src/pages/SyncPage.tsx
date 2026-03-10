@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import SyncVisualBoard from "../components/diff/SyncVisualBoard";
 import SyncHistoryTable from "../components/sync/SyncHistoryTable";
 import {
   cancelSyncSchedule,
@@ -21,7 +22,6 @@ import type {
   SyncDiffPreview,
   SyncHistoryEntry,
   SyncRunDetail,
-  SyncRunItem,
   SyncStatus,
   SyncSummary,
 } from "../types/sync";
@@ -536,7 +536,7 @@ export default function SyncPage() {
             </div>
 
             <div style={{ marginTop: 18 }}>
-              <RunItemsTable
+              <SyncVisualBoard
                 items={diffPreview.items}
                 emptyMessage="No diff preview available yet"
                 emptyIcon="👁"
@@ -553,7 +553,7 @@ export default function SyncPage() {
 
       <div style={{ marginTop: 28 }}>
         <div className="section-title" style={{ marginBottom: 12 }}>Run Details</div>
-        <RunItemsTable
+        <SyncVisualBoard
           items={selectedRun?.items || []}
           emptyMessage="No persisted sync run selected yet"
           emptyIcon="🧭"
@@ -676,141 +676,4 @@ function RunAuditPanel({ audit }: { audit: NonNullable<SyncRunDetail["audit"]> }
       ) : null}
     </div>
   );
-}
-
-function RunItemsTable({
-  items,
-  emptyMessage,
-  emptyIcon,
-  onResolveConflict,
-  resolvingConflictId,
-}: {
-  items: SyncRunItem[];
-  emptyMessage: string;
-  emptyIcon: string;
-  onResolveConflict?: (conflictId: string, strategy: SyncConflictStrategy) => Promise<void> | void;
-  resolvingConflictId?: string | null;
-}) {
-  if (items.length === 0) {
-    return (
-      <div className="empty-state card" style={{ borderStyle: "dashed" }}>
-        <div className="empty-state__icon">{emptyIcon}</div>
-        <p className="empty-state__text">{emptyMessage}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="table-wrap">
-      <table className="c2d-table">
-        <thead>
-          <tr>
-            <th>Workflow</th>
-            <th>Action</th>
-            <th>Status</th>
-            <th>Target</th>
-            <th>Message</th>
-            <th>Resolution</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, index) => {
-            const canResolve = Boolean(onResolveConflict && item.status === "conflict" && item.source_workflow_id);
-            const resolving = resolvingConflictId === item.source_workflow_id;
-
-            return (
-              <tr key={`${item.source_workflow_id || "unknown"}-${index}`}>
-                <td>
-                  <div style={{ fontWeight: 600, color: "var(--c-text-primary)" }}>
-                    {item.source_workflow_name || "Unknown workflow"}
-                  </div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--c-text-tertiary)", fontFamily: "var(--font-mono)" }}>
-                    {item.source_workflow_id || "missing-id"}
-                  </div>
-                </td>
-                <td style={{ textTransform: "uppercase", fontSize: "0.72rem", letterSpacing: "0.06em" }}>
-                  {item.action}
-                </td>
-                <td>
-                  <span className={`badge ${runItemBadgeClass(item.status)}`}>{item.status}</span>
-                </td>
-                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>
-                  {item.target_app_id || "—"}
-                </td>
-                <td>{item.message}</td>
-                <td style={{ minWidth: 180 }}>
-                  {item.resolution ? (
-                    <>
-                      <div style={{ fontSize: "0.76rem", fontWeight: 600 }}>
-                        {item.resolution.status}
-                      </div>
-                      <div style={{ fontSize: "0.72rem", color: "var(--c-text-tertiary)" }}>
-                        {item.resolution.strategy}
-                        {item.resolution.resolved_at ? ` • ${formatTimestamp(item.resolution.resolved_at)}` : ""}
-                      </div>
-                    </>
-                  ) : item.status === "conflict" ? (
-                    <span style={{ fontSize: "0.76rem", color: "var(--c-amber)" }}>Pending resolution</span>
-                  ) : (
-                    <span style={{ fontSize: "0.76rem", color: "var(--c-text-tertiary)" }}>—</span>
-                  )}
-                </td>
-                <td style={{ minWidth: 260 }}>
-                  {canResolve ? (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: "6px 10px", fontSize: "0.72rem" }}
-                        disabled={resolving}
-                        onClick={() => void onResolveConflict?.(item.source_workflow_id, "source_wins")}
-                      >
-                        {resolving ? "Resolving..." : "Source Wins"}
-                      </button>
-                      <button
-                        className="btn btn-ghost"
-                        style={{ padding: "6px 10px", fontSize: "0.72rem" }}
-                        disabled={resolving}
-                        onClick={() => void onResolveConflict?.(item.source_workflow_id, "target_wins")}
-                      >
-                        Keep Target
-                      </button>
-                      <button
-                        className="btn btn-ghost"
-                        style={{ padding: "6px 10px", fontSize: "0.72rem" }}
-                        disabled={resolving}
-                        onClick={() => void onResolveConflict?.(item.source_workflow_id, "manual")}
-                      >
-                        Mark Manual
-                      </button>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: "0.76rem", color: "var(--c-text-tertiary)" }}>
-                      {item.status === "conflict" ? "Select a persisted run to resolve this conflict." : "—"}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function runItemBadgeClass(status: SyncRunItem["status"]) {
-  switch (status) {
-    case "created":
-    case "updated":
-      return "badge--mapped";
-    case "skipped":
-      return "badge--skipped";
-    case "unsupported":
-    case "conflict":
-      return "badge--partial";
-    case "failed":
-    default:
-      return "badge--unmappable";
-  }
 }

@@ -10,12 +10,21 @@ import { getConversion } from "../api/conversion";
 
 export default function ResultPage() {
   const { conversionId } = useParams();
-  const { conversionId: storedConversionId, conversionReport, setConversion } = useWorkflowStore();
+  const {
+    conversionId: storedConversionId,
+    conversionDetail,
+    conversionReport,
+    setConversion,
+  } = useWorkflowStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeDetail =
+    conversionDetail && storedConversionId === conversionId ? conversionDetail : null;
+  const activeReport =
+    activeDetail?.report || (storedConversionId === conversionId ? conversionReport : null);
 
   useEffect(() => {
-    if (!conversionId || (conversionReport && storedConversionId === conversionId)) {
+    if (!conversionId || activeDetail) {
       return;
     }
 
@@ -25,7 +34,7 @@ export default function ResultPage() {
     getConversion(conversionId)
       .then((result) => {
         if (!cancelled) {
-          setConversion(result.conversion_id, result.report);
+          setConversion(result.conversion_id, result.report, result);
         }
       })
       .catch((e: any) => {
@@ -42,9 +51,9 @@ export default function ResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [conversionId, conversionReport, setConversion, storedConversionId]);
+  }, [activeDetail, conversionId, setConversion]);
 
-  if (loading && !conversionReport) {
+  if (loading && !activeReport) {
     return (
       <div className="fade-in">
         <StepNavigation currentStep={3} />
@@ -56,7 +65,7 @@ export default function ResultPage() {
     );
   }
 
-  if ((!conversionReport || !conversionId) && error) {
+  if ((!activeReport || !conversionId) && error) {
     return (
       <div className="fade-in">
         <StepNavigation currentStep={3} />
@@ -68,7 +77,7 @@ export default function ResultPage() {
     );
   }
 
-  if (!conversionReport || !conversionId) {
+  if (!activeReport || !conversionId) {
     return (
       <div className="fade-in">
         <StepNavigation currentStep={3} />
@@ -87,11 +96,11 @@ export default function ResultPage() {
       <div className="page-header">
         <h1 className="page-title">Export Result</h1>
         <p className="page-description">
-          Workflow "{conversionReport.workflow_name}" — conversion complete
+          Workflow "{activeReport.workflow_name}" — conversion complete
         </p>
       </div>
 
-      <ConversionReportView report={conversionReport} />
+      <ConversionReportView report={activeReport} />
 
       {error && (
         <div className="alert alert--error" style={{ marginTop: 20 }}>
@@ -122,7 +131,7 @@ export default function ResultPage() {
         </div>
       </div>
 
-      <WarningList results={conversionReport.node_results} />
+      <WarningList results={activeReport.node_results} />
     </div>
   );
 }

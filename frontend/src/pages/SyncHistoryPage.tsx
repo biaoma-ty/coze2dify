@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import SyncVisualBoard from "../components/diff/SyncVisualBoard";
 import SyncHistoryTable from "../components/sync/SyncHistoryTable";
 import { getSyncHistoryDetail, listSyncHistory } from "../api/sync";
 import type { SyncHistoryEntry, SyncRunDetail } from "../types/sync";
@@ -147,6 +148,17 @@ export default function SyncHistoryPage() {
                   ) : null}
                 </div>
               ) : null}
+
+              <div style={{ marginTop: 20 }}>
+                <div className="section-title" style={{ fontSize: "0.95rem", marginBottom: 12 }}>
+                  Workflow Changes
+                </div>
+                <SyncVisualBoard
+                  items={selectedRun.items}
+                  emptyMessage="No workflow changes were persisted for this run"
+                  emptyIcon="📭"
+                />
+              </div>
             </div>
           ) : null}
         </>

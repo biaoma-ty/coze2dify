@@ -129,7 +129,8 @@ Execute conversion pipeline.
 
 ### `GET /convert/{id}`
 
-Get conversion result.
+Get conversion result, including the persisted report plus `source_graph` / `target_graph` summaries
+for visual diff views.
 
 ### `GET /convert/{id}/dsl`
 

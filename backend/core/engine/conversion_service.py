@@ -91,6 +91,8 @@ class ConversionService:
             "source_workflow_id": task.source_workflow_id,
             "source_workflow_name": task.source_workflow_name,
             "dsl": dsl_payload or {},
+            "source_graph": self._build_source_graph(snapshot),
+            "target_graph": self._build_target_graph(dsl_payload),
             "report": task.report or {},
             "write_result": self._serialize_write_result(snapshot.get("write_result")),
             "audit": self._serialize_audit(snapshot.get("audit"), task),
@@ -270,6 +272,104 @@ class ConversionService:
             "error_message": task.error_message,
             "report_summary": cls._build_report_summary(task.report),
         }
+
+    @classmethod
+    def _build_source_graph(cls, snapshot: dict[str, Any]) -> dict[str, Any] | None:
+        ir_workflow = snapshot.get("ir_workflow")
+        if not isinstance(ir_workflow, dict):
+            return None
+
+        nodes, child_edge_count = cls._flatten_ir_nodes(ir_workflow.get("nodes"))
+        top_level_edges = ir_workflow.get("edges")
+        edge_count = child_edge_count
+        if isinstance(top_level_edges, list):
+            edge_count += sum(1 for edge in top_level_edges if isinstance(edge, dict))
+
+        return {
+            "node_count": len(nodes),
+            "edge_count": edge_count,
+            "nodes": nodes,
+        }
+
+    @staticmethod
+    def _build_target_graph(dsl_payload: Any) -> dict[str, Any] | None:
+        if not isinstance(dsl_payload, dict):
+            return None
+
+        workflow = dsl_payload.get("workflow")
+        if not isinstance(workflow, dict):
+            return None
+
+        graph = workflow.get("graph")
+        if not isinstance(graph, dict):
+            return None
+
+        nodes_payload = graph.get("nodes")
+        nodes: list[dict[str, Any]] = []
+        if isinstance(nodes_payload, list):
+            for node in nodes_payload:
+                if not isinstance(node, dict):
+                    continue
+
+                data = node.get("data")
+                if not isinstance(data, dict):
+                    data = {}
+
+                nodes.append(
+                    {
+                        "id": str(node.get("id") or ""),
+                        "type": str(data.get("type") or node.get("type") or ""),
+                        "title": str(data.get("title") or node.get("id") or ""),
+                        "parent_id": str(node.get("parentId")) if node.get("parentId") else None,
+                    }
+                )
+
+        edge_count = 0
+        edges_payload = graph.get("edges")
+        if isinstance(edges_payload, list):
+            edge_count = sum(1 for edge in edges_payload if isinstance(edge, dict))
+
+        return {
+            "node_count": len(nodes),
+            "edge_count": edge_count,
+            "nodes": nodes,
+        }
+
+    @classmethod
+    def _flatten_ir_nodes(
+        cls,
+        nodes_payload: Any,
+        *,
+        parent_id: str | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        if not isinstance(nodes_payload, list):
+            return [], 0
+
+        nodes: list[dict[str, Any]] = []
+        edge_count = 0
+        for node in nodes_payload:
+            if not isinstance(node, dict):
+                continue
+
+            node_id = str(node.get("id") or "")
+            nodes.append(
+                {
+                    "id": node_id,
+                    "type": str(node.get("node_type") or node.get("type") or ""),
+                    "title": str(node.get("title") or node_id or ""),
+                    "parent_id": parent_id,
+                }
+            )
+
+            child_edges = node.get("child_edges")
+            if isinstance(child_edges, list):
+                edge_count += sum(1 for edge in child_edges if isinstance(edge, dict))
+
+            child_nodes, child_edge_count = cls._flatten_ir_nodes(node.get("children"), parent_id=node_id or parent_id)
+            nodes.extend(child_nodes)
+            edge_count += child_edge_count
+
+        return nodes, edge_count
 
     @staticmethod
     def _build_report_summary(report: dict[str, Any] | None) -> dict[str, Any] | None:

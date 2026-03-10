@@ -5,6 +5,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from core.engine.conversion_service import ConversionService
+from core.ir.models import IREdge, IRNode, IRPosition, IRVariable, IRWorkflow
+from core.ir.types import IRNodeType, IRVariableType
 from db.database import Base
 from db.models import MigrationTask, SyncConfig
 
@@ -57,7 +59,76 @@ def test_convert_uploaded_file_persists_artifacts(tmp_path) -> None:
     assert persisted["source_workflow_name"] == "workflow.json"
     assert persisted["dsl"]["workflow"]["graph"]["nodes"]
     assert persisted["dsl"]["workflow"]["graph"]["edges"]
+    assert result["source_graph"]["node_count"] == 2
+    assert result["source_graph"]["edge_count"] == 1
+    assert result["target_graph"]["node_count"] == 2
+    assert result["target_graph"]["edge_count"] == 1
     assert "workflow:" in yaml_output
+
+
+def test_get_conversion_includes_nested_source_graph_summary(tmp_path, monkeypatch) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-nested-source-graph.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    service = ConversionService()
+
+    workflow = IRWorkflow(
+        id="nested-source",
+        name="Nested source",
+        nodes=[
+            IRNode(
+                id="start",
+                node_type=IRNodeType.START,
+                title="Start",
+                position=IRPosition(),
+            ),
+            IRNode(
+                id="loop",
+                node_type=IRNodeType.LOOP_ARRAY,
+                title="Loop",
+                position=IRPosition(x=280, y=0),
+                children=[
+                    IRNode(
+                        id="child-code",
+                        node_type=IRNodeType.CODE,
+                        title="Child Code",
+                        position=IRPosition(x=560, y=0),
+                        outputs=[IRVariable(name="result", var_type=IRVariableType.STRING)],
+                    )
+                ],
+                child_edges=[
+                    IREdge(source_node_id="loop", target_node_id="child-code"),
+                ],
+            ),
+            IRNode(
+                id="end",
+                node_type=IRNodeType.END,
+                title="End",
+                position=IRPosition(x=840, y=0),
+            ),
+        ],
+        edges=[
+            IREdge(source_node_id="start", target_node_id="loop"),
+            IREdge(source_node_id="loop", target_node_id="end"),
+        ],
+    )
+
+    monkeypatch.setattr(service.engine.coze_parser, "parse_file", lambda content, fmt: workflow)
+
+    with session_factory() as db:
+        result = service.convert_uploaded_file(db, b"{}", "nested.json")
+        persisted = service.get_conversion(db, result["conversion_id"])
+
+    source_nodes = {node["id"]: node for node in persisted["source_graph"]["nodes"]}
+
+    assert persisted["source_graph"]["node_count"] == 4
+    assert persisted["source_graph"]["edge_count"] == 3
+    assert source_nodes["loop"]["parent_id"] is None
+    assert source_nodes["child-code"]["parent_id"] == "loop"
+    assert persisted["target_graph"]["node_count"] >= 3
 
 
 def test_list_conversions_returns_paginated_history_without_sync_tasks(tmp_path) -> None:
