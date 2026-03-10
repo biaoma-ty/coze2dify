@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from core.coze.db_reader import CozeDbReader
 from core.dify.db_reader import DifyDbReader
+from core.security.redaction import build_database_ref, sanitize_exception
 from core.sync.conflict_resolver import ConflictStrategy
 from core.sync.scheduler import SyncScheduler
 from core.sync.sync_engine import SyncEngine
@@ -58,10 +59,17 @@ async def get_sync_config(db: Session = Depends(get_db)):
 
 
 @router.post("/config/test")
-async def test_connections(req: SyncConfigRequest):
+async def test_connections(
+    req: SyncConfigRequest,
+    db: Session = Depends(get_db),
+):
+    config = db.get(SyncConfig, req.config_id) if req.config_id is not None else None
+    if req.config_id is not None and config is None:
+        raise HTTPException(status_code=404, detail=f"Sync config {req.config_id} not found")
+    coze_db_url, dify_db_url = _resolve_requested_urls(config, req)
     return {
-        "coze_db": _test_connection(CozeDbReader, req.coze_db_url),
-        "dify_db": _test_connection(DifyDbReader, req.dify_db_url),
+        "coze_db": _test_connection(CozeDbReader, coze_db_url),
+        "dify_db": _test_connection(DifyDbReader, dify_db_url),
     }
 
 
@@ -170,12 +178,14 @@ def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
         )
         config = db.execute(stmt).scalars().first()
 
+    coze_db_url, dify_db_url = _resolve_requested_urls(config, req)
+
     if config is None:
         config = SyncConfig(
             name=req.name.strip() or "Manual Sync",
             coze_db_type=req.coze_db_type,
-            coze_db_url=req.coze_db_url,
-            dify_db_url=req.dify_db_url,
+            coze_db_url=coze_db_url,
+            dify_db_url=dify_db_url,
             sync_mode=req.sync_mode,
             cron_expression=req.cron_expression,
             enabled=True,
@@ -183,8 +193,8 @@ def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
     else:
         config.name = req.name.strip() or config.name or "Manual Sync"
         config.coze_db_type = req.coze_db_type
-        config.coze_db_url = req.coze_db_url
-        config.dify_db_url = req.dify_db_url
+        config.coze_db_url = coze_db_url
+        config.dify_db_url = dify_db_url
         config.sync_mode = req.sync_mode
         config.cron_expression = req.cron_expression
         config.enabled = True
@@ -195,15 +205,17 @@ def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
     return config
 
 
-def _serialize_config(config: SyncConfig | None) -> dict[str, str | int | bool | None] | None:
+def _serialize_config(config: SyncConfig | None) -> dict[str, object] | None:
     if config is None:
         return None
     return {
         "id": config.id,
         "name": config.name,
         "coze_db_type": config.coze_db_type,
-        "coze_db_url": config.coze_db_url,
-        "dify_db_url": config.dify_db_url,
+        "coze_db": build_database_ref(config.coze_db_url),
+        "dify_db": build_database_ref(config.dify_db_url),
+        "has_stored_coze_db_url": bool(config.coze_db_url),
+        "has_stored_dify_db_url": bool(config.dify_db_url),
         "sync_mode": config.sync_mode,
         "cron_expression": config.cron_expression,
         "enabled": config.enabled,
@@ -217,7 +229,29 @@ def _test_connection(reader_cls: type[CozeDbReader] | type[DifyDbReader], db_url
         connected = reader_cls(db_url).test_connection()
         return {"connected": connected, "error": None if connected else "Connection test failed"}
     except Exception as exc:  # noqa: BLE001 - return actionable UI error
-        return {"connected": False, "error": str(exc)}
+        return {"connected": False, "error": sanitize_exception(exc, db_urls=[db_url])}
+
+
+def _resolve_requested_urls(
+    config: SyncConfig | None,
+    req: SyncConfigRequest,
+) -> tuple[str, str]:
+    coze_db_url = req.coze_db_url.strip()
+    dify_db_url = req.dify_db_url.strip()
+
+    if config is not None:
+        if not coze_db_url:
+            coze_db_url = config.coze_db_url
+        if not dify_db_url:
+            dify_db_url = config.dify_db_url
+
+    if not coze_db_url or not dify_db_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Both Coze and Dify database URLs are required. Re-enter the redacted value to replace it.",
+        )
+
+    return coze_db_url, dify_db_url
 
 
 def _get_history(db: Session, history_id: str) -> SyncHistory:

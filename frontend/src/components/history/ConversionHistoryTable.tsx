@@ -24,7 +24,7 @@ function getStatusTone(status: string): "mapped" | "partial" | "unmappable" | "s
   if (status === "converted" || status === "written" || status === "updated") {
     return "mapped";
   }
-  if (status === "failed" || status === "error") {
+  if (status === "failed" || status === "error" || status === "write_failed") {
     return "unmappable";
   }
   if (status === "skipped") {
@@ -101,7 +101,11 @@ export default function ConversionHistoryTable({ items }: { items: ConversionHis
                   <div style={{ display: "grid", gap: 6 }}>
                     <span className={`badge badge--${getStatusTone(item.status)}`}>{item.status}</span>
                     <span style={{ fontSize: "0.76rem", color: "var(--c-text-tertiary)" }}>
-                      {writeResult?.app_id ? `${writeResult.mode === "update" ? "Updated" : "Created"} app` : "Ready for review"}
+                      {item.error_message
+                        ? item.error_message
+                        : writeResult?.app_id
+                          ? `${writeResult.mode === "update" ? "Updated" : "Created"} app`
+                          : "Ready for review"}
                     </span>
                   </div>
                 </td>
@@ -141,6 +145,11 @@ export default function ConversionHistoryTable({ items }: { items: ConversionHis
                       <span style={{ fontSize: "0.74rem", color: "var(--c-text-tertiary)" }}>
                         {formatTimestamp(writeResult.written_at || item.completed_at)}
                       </span>
+                      {writeResult.target?.display_url ? (
+                        <span style={{ fontSize: "0.72rem", color: "var(--c-text-tertiary)", fontFamily: "var(--font-mono)" }}>
+                          {writeResult.target.display_url}
+                        </span>
+                      ) : null}
                       {difyAppUrl ? (
                         <a
                           href={difyAppUrl}
@@ -150,6 +159,15 @@ export default function ConversionHistoryTable({ items }: { items: ConversionHis
                         >
                           Open in Dify
                         </a>
+                      ) : null}
+                    </div>
+                  ) : item.error_message ? (
+                    <div style={{ display: "grid", gap: 4 }}>
+                      <span style={{ color: "var(--c-red)", fontSize: "0.78rem" }}>{item.error_message}</span>
+                      {item.audit?.last_write?.target?.display_url ? (
+                        <span style={{ fontSize: "0.72rem", color: "var(--c-text-tertiary)", fontFamily: "var(--font-mono)" }}>
+                          {item.audit.last_write.target.display_url}
+                        </span>
                       ) : null}
                     </div>
                   ) : (

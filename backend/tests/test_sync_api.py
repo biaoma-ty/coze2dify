@@ -23,6 +23,9 @@ class FakeCozeReader:
     def __init__(self, db_url: str) -> None:
         self.db_url = db_url
 
+    def test_connection(self) -> bool:
+        return True
+
     def list_workflows(self) -> list[dict[str, str]]:
         return [{"id": "wf-api", "name": "API Flow"}]
 
@@ -30,6 +33,9 @@ class FakeCozeReader:
 class FakeDifyReader:
     def __init__(self, db_url: str) -> None:
         self.db_url = db_url
+
+    def test_connection(self) -> bool:
+        return True
 
     def list_apps(self) -> list[dict[str, str]]:
         return []
@@ -79,7 +85,22 @@ class FakeConversionService:
         snapshot["write_result"] = {
             "app_id": app_id or "created-app",
             "mode": "update" if app_id else "create",
-            "db_url": db_url,
+            "status": "succeeded",
+            "target": {
+                "scheme": "postgresql",
+                "host": "dify.test",
+                "port": None,
+                "database": "app",
+                "display_url": "postgresql://***@dify.test/app",
+            },
+        }
+        snapshot["audit"] = {
+            "source": {
+                "type": "database",
+                "workflow_id": task.source_workflow_id,
+                "workflow_name": task.source_workflow_name,
+            },
+            "last_write": snapshot["write_result"],
         }
         task.ir_snapshot = snapshot
         task.status = "updated" if app_id else "written"
@@ -120,6 +141,8 @@ def test_sync_execute_endpoint_persists_history_and_exposes_detail(tmp_path, mon
             dify_reader_factory=FakeDifyReader,
         ),
     )
+    monkeypatch.setattr(sync_endpoints, "CozeDbReader", FakeCozeReader)
+    monkeypatch.setattr(sync_endpoints, "DifyDbReader", FakeDifyReader)
 
     client = TestClient(app)
     payload = {
@@ -156,7 +179,23 @@ def test_sync_execute_endpoint_persists_history_and_exposes_detail(tmp_path, mon
 
     config_response = client.get("/api/v1/sync/config")
     assert config_response.status_code == 200
-    assert config_response.json()["config"]["coze_db_url"] == payload["coze_db_url"]
+    config_payload = config_response.json()["config"]
+    assert config_payload["coze_db"]["display_url"] == "postgresql://***@coze.test/app"
+    assert config_payload["dify_db"]["display_url"] == "postgresql://***@dify.test/app"
+    assert config_payload["has_stored_coze_db_url"] is True
+    assert config_payload["has_stored_dify_db_url"] is True
+
+    test_response = client.post(
+        "/api/v1/sync/config/test",
+        json={
+            "config_id": config_payload["id"],
+            "name": "Manual Sync",
+            "coze_db_url": "",
+            "dify_db_url": "",
+        },
+    )
+    assert test_response.status_code == 200
+    assert test_response.json()["coze_db"]["connected"] is True
 
     with session_factory() as db:
         histories = db.execute(select(SyncHistory)).scalars().all()
@@ -164,6 +203,8 @@ def test_sync_execute_endpoint_persists_history_and_exposes_detail(tmp_path, mon
 
     assert len(histories) == 1
     assert histories[0].workflows_synced == 1
+    assert histories[0].conflicts_resolved["audit"]["source_db"]["display_url"] == "postgresql://***@coze.test/app"
+    assert histories[0].conflicts_resolved["audit"]["target_db"]["display_url"] == "postgresql://***@dify.test/app"
     assert len(tasks) == 1
     assert tasks[0].sync_config_id == histories[0].sync_config_id
 

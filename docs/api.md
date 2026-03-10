@@ -143,6 +143,12 @@ Get detailed conversion report (mapping stats, warnings, unmappable nodes).
 
 Direct-write conversion result to Dify PostgreSQL.
 
+Safety behavior:
+
+- raw target DB URLs are not echoed back in API-visible payloads
+- successful and failed writes persist redacted target references plus last-write audit metadata
+- write failures return actionable, sanitized error details
+
 ---
 
 ## Sync
@@ -154,6 +160,11 @@ Create or update sync configuration (source DB + target DB connection info).
 ### `GET /sync/config`
 
 Get current sync configuration.
+
+Safety behavior:
+
+- stored source/target DB URLs are returned as redacted references such as `postgresql://***@host/db`
+- blank DB URL fields on follow-up save/run requests keep the persisted value for the referenced `config_id`
 
 ### `POST /sync/config/test`
 
@@ -171,9 +182,17 @@ Get current sync status.
 
 List sync history records.
 
+Response includes persisted audit metadata with redacted source/target DB references plus recent failure samples when present.
+
 ### `GET /sync/history/{id}`
 
 Get detailed report for a specific sync run.
+
+Detailed payloads include:
+
+- redacted source and target DB references
+- latest resolution metadata for conflict handling
+- sanitized failure details suitable for operator troubleshooting
 
 ### `POST /sync/schedule`
 
