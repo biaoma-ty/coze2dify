@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -120,6 +121,85 @@ def test_list_conversions_returns_paginated_history_without_sync_tasks(tmp_path)
     assert [item["conversion_id"] for item in first_page["items"]] == [second["conversion_id"]]
     assert first_page["items"][0]["status"] == "written"
     assert first_page["items"][0]["write_result"]["app_id"] == "app-history-123"
+    assert first_page["items"][0]["write_result"]["target"]["display_url"] == "postgresql://***@dify.example/db"
     assert first_page["items"][0]["report_summary"]["total_nodes"] == 2
     assert first_page["items"][0]["report_summary"]["mapped_count"] >= 0
     assert [item["conversion_id"] for item in second_page["items"]] == [first["conversion_id"]]
+
+
+def test_write_to_dify_persists_redacted_write_audit(tmp_path, monkeypatch) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-write-success.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    service = ConversionService()
+
+    class SuccessfulWriter:
+        def __init__(self, db_url: str) -> None:
+            self.db_url = db_url
+
+        def write_workflow(self, dify_dsl) -> str:  # noqa: ANN001 - test double
+            return "app-created-123"
+
+    monkeypatch.setattr("core.engine.conversion_service.DifyDbWriter", SuccessfulWriter)
+
+    with session_factory() as db:
+        conversion = service.convert_uploaded_file(
+            db,
+            json.dumps(MINIMAL_COZE_CANVAS).encode(),
+            "write-success.json",
+        )
+        write_result = service.write_to_dify(
+            db,
+            conversion["conversion_id"],
+            db_url="postgresql://writer:supersecret@dify.example:5432/dify",
+        )
+        persisted = service.get_conversion(db, conversion["conversion_id"])
+
+    assert write_result["status"] == "written"
+    assert write_result["write_result"]["target"]["display_url"] == "postgresql://***@dify.example:5432/dify"
+    assert write_result["write_result"]["status"] == "succeeded"
+    assert persisted["audit"]["last_write"]["app_id"] == "app-created-123"
+    assert persisted["error_message"] is None
+
+
+def test_write_to_dify_persists_sanitized_failure_details(tmp_path, monkeypatch) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-write-failure.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    service = ConversionService()
+
+    class FailingWriter:
+        def __init__(self, db_url: str) -> None:
+            self.db_url = db_url
+
+        def write_workflow(self, dify_dsl) -> str:  # noqa: ANN001 - test double
+            raise RuntimeError(f"unable to connect to {self.db_url}")
+
+    monkeypatch.setattr("core.engine.conversion_service.DifyDbWriter", FailingWriter)
+
+    with session_factory() as db:
+        conversion = service.convert_uploaded_file(
+            db,
+            json.dumps(MINIMAL_COZE_CANVAS).encode(),
+            "write-failure.json",
+        )
+
+        with pytest.raises(RuntimeError, match=r"postgresql://\*\*\*@dify.example:5432/dify"):
+            service.write_to_dify(
+                db,
+                conversion["conversion_id"],
+                db_url="postgresql://writer:supersecret@dify.example:5432/dify",
+            )
+
+        persisted = service.get_conversion(db, conversion["conversion_id"])
+
+    assert persisted["status"] == "write_failed"
+    assert persisted["error_message"] == "unable to connect to postgresql://***@dify.example:5432/dify"
+    assert persisted["write_result"]["status"] == "failed"
+    assert persisted["write_result"]["target"]["display_url"] == "postgresql://***@dify.example:5432/dify"

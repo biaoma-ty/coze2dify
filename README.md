@@ -141,7 +141,7 @@ Some endpoints below exist in the API surface but are not all fully wired in the
 | `POST` | `/api/v1/coze/upload` | Upload Coze workflow file |
 | `POST` | `/api/v1/convert` | Execute conversion |
 | `GET`  | `/api/v1/convert/{id}/dsl` | Download Dify DSL |
-| `POST` | `/api/v1/convert/{id}/write-to-dify` | Reserved endpoint; public API flow not fully implemented yet |
+| `POST` | `/api/v1/convert/{id}/write-to-dify` | Write converted DSL directly to Dify PostgreSQL |
 
 ### Sync
 
@@ -156,6 +156,13 @@ The sync API covers persisted config, manual execution, diff preview, conflict r
 | `POST` | `/api/v1/sync/schedule` | Register cron-based sync |
 | `POST` | `/api/v1/sync/diff` | Preview create/update/conflict/delete gaps |
 | `POST` | `/api/v1/sync/conflicts/{id}/resolve` | Resolve a persisted conflict |
+
+### Safety Notes
+
+- Sync config and direct-write responses no longer echo raw database URLs; API payloads return redacted `display_url` references instead.
+- Persisted sync runs and conversion tasks now carry operator audit metadata, including redacted source/target DB references and the latest write attempt details.
+- Reusing a saved sync config from the UI does not require re-entering the stored DB URL; leaving the redacted field blank keeps the persisted value unchanged.
+- Direct DB writes and sync remain operator-driven workflows. Treat them as privileged actions, and keep them behind trusted environments and credentials management.
 
 ### Dev Mode
 

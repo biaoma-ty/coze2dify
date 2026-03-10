@@ -12,6 +12,7 @@ from core.coze.api_client import CozeApiClient
 from core.coze.db_reader import CozeDbReader
 from core.dify.db_writer import DifyDbWriter
 from core.dify.models import DifyDSL
+from core.security.redaction import build_database_ref, sanitize_exception
 from db.models import MigrationTask
 
 from .converter import ConversionEngine
@@ -78,7 +79,7 @@ class ConversionService:
 
     def get_conversion(self, db: Session, conversion_id: str) -> dict[str, Any]:
         task = self._get_task(db, conversion_id)
-        snapshot = task.ir_snapshot or {}
+        snapshot = dict(task.ir_snapshot or {})
         dsl_payload = snapshot.get("dify_dsl")
         if dsl_payload is None and task.dify_dsl:
             dsl_payload = yaml.safe_load(task.dify_dsl)
@@ -91,7 +92,9 @@ class ConversionService:
             "source_workflow_name": task.source_workflow_name,
             "dsl": dsl_payload or {},
             "report": task.report or {},
-            "write_result": snapshot.get("write_result"),
+            "write_result": self._serialize_write_result(snapshot.get("write_result")),
+            "audit": self._serialize_audit(snapshot.get("audit"), task),
+            "error_message": task.error_message,
             "created_at": task.created_at.isoformat() if task.created_at else None,
             "completed_at": task.completed_at.isoformat() if task.completed_at else None,
         }
@@ -126,7 +129,7 @@ class ConversionService:
         if not target_db_url:
             raise ValueError("Dify database URL is required")
 
-        snapshot = task.ir_snapshot or {}
+        snapshot = dict(task.ir_snapshot or {})
         dsl_payload = snapshot.get("dify_dsl")
         if dsl_payload is None:
             if not task.dify_dsl:
@@ -135,23 +138,55 @@ class ConversionService:
 
         dify_dsl = DifyDSL.model_validate(dsl_payload)
         writer = DifyDbWriter(target_db_url)
-        if app_id:
-            writer.update_workflow(app_id, dify_dsl)
-            mode = "update"
-            target_app_id = app_id
-        else:
-            target_app_id = writer.write_workflow(dify_dsl)
-            mode = "create"
+        write_started_at = datetime.now(timezone.utc)
+        audit = self._serialize_audit(snapshot.get("audit"), task)
 
-        snapshot["write_result"] = {
-            "app_id": target_app_id,
-            "mode": mode,
-            "db_url": target_db_url,
-            "written_at": datetime.now(timezone.utc).isoformat(),
-        }
+        try:
+            if app_id:
+                writer.update_workflow(app_id, dify_dsl)
+                mode = "update"
+                target_app_id = app_id
+            else:
+                target_app_id = writer.write_workflow(dify_dsl)
+                mode = "create"
+        except Exception as exc:  # noqa: BLE001 - persist sanitized write failure details
+            sanitized_error = sanitize_exception(exc, db_urls=[target_db_url])
+            write_result = self._build_write_result(
+                mode="update" if app_id else "create",
+                app_id=app_id,
+                target_db_url=target_db_url,
+                written_at=write_started_at,
+                status="failed",
+                error=sanitized_error,
+                requested_app_id=app_id,
+            )
+            audit["last_write"] = write_result
+            snapshot["audit"] = audit
+            snapshot["write_result"] = write_result
+            task.ir_snapshot = snapshot
+            task.error_message = sanitized_error
+            task.status = "write_failed"
+            task.completed_at = write_started_at.replace(tzinfo=None)
+            db.add(task)
+            db.commit()
+            db.refresh(task)
+            raise RuntimeError(sanitized_error) from exc
+
+        write_result = self._build_write_result(
+            mode=mode,
+            app_id=target_app_id,
+            target_db_url=target_db_url,
+            written_at=write_started_at,
+            status="succeeded",
+            requested_app_id=app_id,
+        )
+        audit["last_write"] = write_result
+        snapshot["audit"] = audit
+        snapshot["write_result"] = write_result
         task.ir_snapshot = snapshot
+        task.error_message = None
         task.status = "updated" if mode == "update" else "written"
-        task.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        task.completed_at = write_started_at.replace(tzinfo=None)
         db.add(task)
         db.commit()
         db.refresh(task)
@@ -161,6 +196,7 @@ class ConversionService:
             "app_id": target_app_id,
             "mode": mode,
             "status": task.status,
+            "write_result": write_result,
         }
 
     def _store_conversion(
@@ -178,6 +214,14 @@ class ConversionService:
             "ir_workflow": ir_workflow.model_dump(mode="json"),
             "dify_dsl": dify_dsl.model_dump(mode="json"),
             "write_result": None,
+            "audit": {
+                "source": {
+                    "type": source_type,
+                    "workflow_id": source_workflow_id,
+                    "workflow_name": source_workflow_name,
+                },
+                "last_write": None,
+            },
         }
         task = MigrationTask(
             source_type=source_type,
@@ -221,7 +265,9 @@ class ConversionService:
             "source_workflow_name": task.source_workflow_name,
             "created_at": task.created_at.isoformat() if task.created_at else None,
             "completed_at": task.completed_at.isoformat() if task.completed_at else None,
-            "write_result": write_result,
+            "write_result": cls._serialize_write_result(write_result),
+            "audit": cls._serialize_audit(snapshot.get("audit"), task),
+            "error_message": task.error_message,
             "report_summary": cls._build_report_summary(task.report),
         }
 
@@ -242,6 +288,65 @@ class ConversionService:
             "warnings_count": len(warnings) if isinstance(warnings, list) else 0,
             "errors_count": len(errors) if isinstance(errors, list) else 0,
         }
+
+    @staticmethod
+    def _build_write_result(
+        *,
+        mode: str,
+        app_id: str | None,
+        target_db_url: str,
+        written_at: datetime,
+        status: str,
+        error: str | None = None,
+        requested_app_id: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "app_id": app_id,
+            "mode": mode,
+            "status": status,
+            "error": error,
+            "requested_app_id": requested_app_id,
+            "target": build_database_ref(target_db_url),
+            "written_at": written_at.isoformat(),
+        }
+
+    @staticmethod
+    def _serialize_write_result(write_result: Any) -> dict[str, Any] | None:
+        if not isinstance(write_result, dict):
+            return None
+
+        target = write_result.get("target")
+        if not isinstance(target, dict):
+            target = build_database_ref(write_result.get("db_url"))
+
+        return {
+            "app_id": write_result.get("app_id"),
+            "mode": write_result.get("mode"),
+            "status": write_result.get("status") or ("failed" if write_result.get("error") else "succeeded"),
+            "error": write_result.get("error"),
+            "requested_app_id": write_result.get("requested_app_id"),
+            "target": target,
+            "written_at": write_result.get("written_at"),
+        }
+
+    @classmethod
+    def _serialize_audit(cls, audit: Any, task: MigrationTask) -> dict[str, Any]:
+        payload = dict(audit) if isinstance(audit, dict) else {}
+        source = payload.get("source")
+        if not isinstance(source, dict):
+            source = {}
+
+        payload["source"] = {
+            "type": source.get("type") or task.source_type,
+            "workflow_id": source.get("workflow_id") or task.source_workflow_id,
+            "workflow_name": source.get("workflow_name") or task.source_workflow_name,
+        }
+
+        payload["last_write"] = cls._serialize_write_result(payload.get("last_write"))
+        if payload["last_write"] is None and isinstance(task.ir_snapshot, dict):
+            payload["last_write"] = cls._serialize_write_result(task.ir_snapshot.get("write_result"))
+
+        return payload
 
     @classmethod
     def _extract_canvas(cls, payload: Any) -> dict[str, Any]:

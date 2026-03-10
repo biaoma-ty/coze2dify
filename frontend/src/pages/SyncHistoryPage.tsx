@@ -123,6 +123,30 @@ export default function SyncHistoryPage() {
                   tone="var(--c-red)"
                 />
               </div>
+
+              {selectedRun.audit ? (
+                <div style={{ display: "grid", gap: 8, marginTop: 18 }}>
+                  {selectedRun.audit.source_db?.display_url ? (
+                    <div style={{ fontSize: "0.8rem", color: "var(--c-text-tertiary)" }}>
+                      Source DB:{" "}
+                      <span style={{ fontFamily: "var(--font-mono)" }}>
+                        {selectedRun.audit.source_db.display_url}
+                      </span>
+                    </div>
+                  ) : null}
+                  {selectedRun.audit.target_db?.display_url ? (
+                    <div style={{ fontSize: "0.8rem", color: "var(--c-text-tertiary)" }}>
+                      Target DB:{" "}
+                      <span style={{ fontFamily: "var(--font-mono)" }}>
+                        {selectedRun.audit.target_db.display_url}
+                      </span>
+                    </div>
+                  ) : null}
+                  {selectedRun.audit.last_error ? (
+                    <div className="alert alert--error">{selectedRun.audit.last_error}</div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </>

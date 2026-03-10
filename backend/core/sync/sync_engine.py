@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from core.coze.db_reader import CozeDbReader
 from core.dify.db_reader import DifyDbReader
 from core.engine.conversion_service import ConversionService
+from core.security.redaction import build_database_ref, sanitize_exception
 from core.sync.conflict_resolver import ConflictResolver, ConflictStrategy
 from core.sync.diff_detector import DiffDetector
 from db.models import MigrationTask, SyncConfig, SyncHistory
@@ -58,6 +59,7 @@ class SyncEngine:
         summary = self._empty_summary()
         items: list[dict[str, Any]] = []
         status = "completed"
+        audit = self._build_history_audit(config, trigger_type)
 
         try:
             source_workflows = self.coze_reader_factory(config.coze_db_url).list_workflows()
@@ -183,6 +185,7 @@ class SyncEngine:
                         )
                     )
                 except Exception as exc:  # noqa: BLE001 - preserve run history instead of failing the whole request
+                    sanitized_error = self._sanitize_sync_error(exc, config)
                     items.append(
                         self._result_item(
                             action=action,
@@ -190,18 +193,19 @@ class SyncEngine:
                             source_workflow_id=source_id,
                             source_workflow_name=source_name,
                             target_app_id=mapping["app_id"] if mapping else None,
-                            message=str(exc),
+                            message=sanitized_error,
                         )
                     )
                     summary["failed"] += 1
         except Exception as exc:  # noqa: BLE001 - persist run-level failure details
+            sanitized_error = self._sanitize_sync_error(exc, config)
             items.append(
                 self._result_item(
                     action="inspect",
                     status="failed",
                     source_workflow_id="",
                     source_workflow_name=config.name,
-                    message=str(exc),
+                    message=sanitized_error,
                 )
             )
             summary["failed"] += 1
@@ -213,8 +217,13 @@ class SyncEngine:
         history.workflows_synced = summary["created"] + summary["updated"]
         history.workflows_failed = summary["failed"]
         history.conflicts_count = summary["conflicts"]
-        history.conflicts_resolved = {"summary": summary, "items": items}
         history.completed_at = _utcnow()
+        history.conflicts_resolved = self._build_history_payload(
+            audit=audit,
+            summary=summary,
+            items=items,
+            completed_at=history.completed_at,
+        )
         history.status = status
         db.add(history)
         db.commit()
@@ -303,7 +312,7 @@ class SyncEngine:
                         source_workflow_id=source_id,
                         source_workflow_name=source_name,
                         target_app_id=mapping["app_id"] if mapping else None,
-                        message=str(exc),
+                        message=self._sanitize_sync_error(exc, config),
                     )
                 )
                 summary["failed"] += 1
@@ -404,6 +413,7 @@ class SyncEngine:
         config = history.sync_config
         if config is None:
             raise LookupError(f"Sync config {history.sync_config_id} not found")
+        audit = self._coerce_history_audit(payload.get("audit"), config, history.trigger_type)
 
         index = next(
             (
@@ -440,7 +450,18 @@ class SyncEngine:
                 "status": "pending_manual_review",
             }
             items[index] = conflict_item
-            history.conflicts_resolved = {"summary": summary, "items": items}
+            audit["last_resolution"] = {
+                "conflict_id": conflict_id,
+                "strategy": strategy.value,
+                "status": "pending_manual_review",
+                "resolved_at": conflict_item["resolution"]["resolved_at"],
+            }
+            history.conflicts_resolved = self._build_history_payload(
+                audit=audit,
+                summary=summary,
+                items=items,
+                completed_at=history.completed_at,
+            )
             db.add(history)
             db.commit()
             db.refresh(history)
@@ -492,10 +513,21 @@ class SyncEngine:
             )
 
         items[index] = conflict_item
+        audit["last_resolution"] = {
+            "conflict_id": conflict_id,
+            "strategy": strategy.value,
+            "status": conflict_item["resolution"]["status"],
+            "resolved_at": conflict_item["resolution"]["resolved_at"],
+        }
         history.workflows_failed = summary["failed"]
         history.conflicts_count = summary["conflicts"]
-        history.conflicts_resolved = {"summary": summary, "items": items}
         history.completed_at = _utcnow()
+        history.conflicts_resolved = self._build_history_payload(
+            audit=audit,
+            summary=summary,
+            items=items,
+            completed_at=history.completed_at,
+        )
         history.status = self._derive_status(summary)
         db.add(history)
         db.commit()
@@ -521,10 +553,77 @@ class SyncEngine:
                 **SyncEngine._empty_summary(),
                 **summary,
             },
+            "audit": payload.get("audit") or None,
         }
         if include_items:
             data["items"] = payload.get("items") or []
         return data
+
+    @staticmethod
+    def _build_history_audit(config: SyncConfig, trigger_type: str) -> dict[str, Any]:
+        return {
+            "config_name": config.name,
+            "sync_mode": config.sync_mode,
+            "cron_expression": config.cron_expression,
+            "trigger_type": trigger_type,
+            "source_db": build_database_ref(config.coze_db_url),
+            "target_db": build_database_ref(config.dify_db_url),
+        }
+
+    @classmethod
+    def _coerce_history_audit(
+        cls,
+        audit: Any,
+        config: SyncConfig,
+        trigger_type: str,
+    ) -> dict[str, Any]:
+        payload = dict(audit) if isinstance(audit, dict) else {}
+        payload.setdefault("config_name", config.name)
+        payload.setdefault("sync_mode", config.sync_mode)
+        payload.setdefault("cron_expression", config.cron_expression)
+        payload.setdefault("trigger_type", trigger_type)
+        payload.setdefault("source_db", build_database_ref(config.coze_db_url))
+        payload.setdefault("target_db", build_database_ref(config.dify_db_url))
+        return payload
+
+    @classmethod
+    def _build_history_payload(
+        cls,
+        *,
+        audit: dict[str, Any],
+        summary: dict[str, int],
+        items: list[dict[str, Any]],
+        completed_at: datetime | None,
+    ) -> dict[str, Any]:
+        failure_samples = cls._collect_failure_samples(items)
+        audit_payload = {
+            **audit,
+            "failure_samples": failure_samples,
+            "last_error": failure_samples[0] if failure_samples else None,
+            "completed_at": completed_at.isoformat() if completed_at else None,
+        }
+        return {
+            "summary": summary,
+            "items": items,
+            "audit": audit_payload,
+        }
+
+    @staticmethod
+    def _collect_failure_samples(items: list[dict[str, Any]]) -> list[str]:
+        samples: list[str] = []
+        for item in items:
+            if item.get("status") != "failed":
+                continue
+            message = str(item.get("message") or "").strip()
+            if message and message not in samples:
+                samples.append(message)
+            if len(samples) >= 3:
+                break
+        return samples
+
+    @staticmethod
+    def _sanitize_sync_error(exc: Exception, config: SyncConfig) -> str:
+        return sanitize_exception(exc, db_urls=[config.coze_db_url, config.dify_db_url])
 
     @staticmethod
     def _empty_summary() -> dict[str, int]:
@@ -588,7 +687,18 @@ class SyncEngine:
         task = db.get(MigrationTask, int(conversion_id))
         if task is None:
             return
+        config = db.get(SyncConfig, sync_config_id)
+        snapshot = dict(task.ir_snapshot or {})
+        audit = snapshot.get("audit") if isinstance(snapshot, dict) else None
+        if not isinstance(audit, dict):
+            audit = {}
+        audit["sync"] = {
+            "sync_config_id": sync_config_id,
+            "sync_config_name": config.name if config else None,
+        }
+        snapshot["audit"] = audit
         task.sync_config_id = sync_config_id
+        task.ir_snapshot = snapshot
         db.add(task)
         db.commit()
 

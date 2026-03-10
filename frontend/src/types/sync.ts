@@ -1,3 +1,5 @@
+import type { DatabaseTargetRef } from "./audit";
+
 export type SyncMode = "manual" | "scheduled";
 export type SyncRunStatus = "completed" | "partial" | "failed" | "running";
 export type SyncConflictStrategy = "source_wins" | "target_wins" | "manual";
@@ -6,8 +8,10 @@ export interface SyncConfig {
   id: number;
   name: string;
   coze_db_type: string;
-  coze_db_url: string;
-  dify_db_url: string;
+  coze_db: DatabaseTargetRef | null;
+  dify_db: DatabaseTargetRef | null;
+  has_stored_coze_db_url: boolean;
+  has_stored_dify_db_url: boolean;
   sync_mode: SyncMode;
   cron_expression: string | null;
   enabled: boolean;
@@ -78,6 +82,24 @@ export interface SyncStatus {
   scheduled_jobs: SyncScheduledJob[];
 }
 
+export interface SyncRunAudit {
+  config_name?: string;
+  sync_mode?: string;
+  cron_expression?: string | null;
+  trigger_type?: string;
+  source_db?: DatabaseTargetRef | null;
+  target_db?: DatabaseTargetRef | null;
+  failure_samples?: string[];
+  last_error?: string | null;
+  completed_at?: string | null;
+  last_resolution?: {
+    conflict_id: string;
+    strategy: SyncConflictStrategy;
+    status: string;
+    resolved_at: string;
+  } | null;
+}
+
 export interface SyncHistoryEntry {
   id: string;
   sync_config_id: number;
@@ -90,6 +112,7 @@ export interface SyncHistoryEntry {
   workflows_failed: number;
   conflicts_count: number;
   summary: SyncSummary;
+  audit?: SyncRunAudit | null;
 }
 
 export interface SyncRunDetail extends SyncHistoryEntry {

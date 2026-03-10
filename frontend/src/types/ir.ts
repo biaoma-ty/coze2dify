@@ -1,3 +1,5 @@
+import type { DatabaseTargetRef } from "./audit";
+
 export type MappingStatus = "mapped" | "partial" | "unmappable" | "skipped";
 
 export interface NodeConversionResult {
@@ -41,10 +43,26 @@ export interface ConversionResult {
 }
 
 export interface WriteResult {
-  app_id: string;
+  app_id: string | null;
   mode: "create" | "update";
-  db_url?: string;
+  status: "succeeded" | "failed";
+  error?: string | null;
+  requested_app_id?: string | null;
+  target?: DatabaseTargetRef | null;
   written_at?: string;
+}
+
+export interface ConversionAudit {
+  source: {
+    type: string;
+    workflow_id: string;
+    workflow_name: string;
+  };
+  sync?: {
+    sync_config_id: number;
+    sync_config_name: string | null;
+  } | null;
+  last_write?: WriteResult | null;
 }
 
 export interface ConversionHistoryReportSummary {
@@ -67,6 +85,8 @@ export interface ConversionHistoryItem {
   created_at: string | null;
   completed_at: string | null;
   write_result: WriteResult | null;
+  audit: ConversionAudit | null;
+  error_message: string | null;
   report_summary: ConversionHistoryReportSummary | null;
 }
 
@@ -84,6 +104,8 @@ export interface ConversionDetail {
   dsl: Record<string, unknown>;
   report: ConversionReport;
   write_result: WriteResult | null;
+  audit: ConversionAudit | null;
+  error_message: string | null;
   created_at: string | null;
   completed_at: string | null;
 }

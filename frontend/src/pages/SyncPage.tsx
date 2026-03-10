@@ -46,6 +46,7 @@ const EMPTY_SUMMARY: SyncSummary = {
 
 export default function SyncPage() {
   const [form, setForm] = useState<SyncConfigInput>(DEFAULT_FORM);
+  const [storedConfig, setStoredConfig] = useState<SyncConfig | null>(null);
   const [history, setHistory] = useState<SyncHistoryEntry[]>([]);
   const [selectedRun, setSelectedRun] = useState<SyncRunDetail | null>(null);
   const [diffPreview, setDiffPreview] = useState<SyncDiffPreview | null>(null);
@@ -78,7 +79,9 @@ export default function SyncPage() {
 
       setSyncStatus(status);
       if (config) {
-        setForm(toInput(config));
+        applyStoredConfig(config);
+      } else {
+        setStoredConfig(null);
       }
 
       setHistory(historyItems);
@@ -101,6 +104,17 @@ export default function SyncPage() {
     return status;
   };
 
+  const refreshConfig = async () => {
+    const config = await getSyncConfig();
+    if (config) {
+      applyStoredConfig(config);
+    } else {
+      setStoredConfig(null);
+      setForm(DEFAULT_FORM);
+    }
+    return config;
+  };
+
   const refreshHistory = async (selectedId?: string) => {
     const items = await listSyncHistory();
     setHistory(items);
@@ -118,6 +132,11 @@ export default function SyncPage() {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
+  const applyStoredConfig = (config: SyncConfig) => {
+    setStoredConfig(config);
+    setForm(toInput(config));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError("");
@@ -128,7 +147,7 @@ export default function SyncPage() {
         sync_mode: "manual",
         cron_expression: null,
       });
-      setForm(toInput(saved));
+      applyStoredConfig(saved);
       setDiffPreview(null);
       await refreshStatus();
       setInfo("Manual sync config saved.");
@@ -161,11 +180,7 @@ export default function SyncPage() {
     try {
       const preview = await previewSyncDiff(form);
       setDiffPreview(preview);
-      setForm((current) => ({
-        ...current,
-        config_id: preview.config_id,
-      }));
-      await refreshStatus();
+      await Promise.all([refreshStatus(), refreshConfig()]);
       setInfo("Sync diff preview updated.");
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || "Failed to preview sync diff");
@@ -180,13 +195,9 @@ export default function SyncPage() {
     setInfo("");
     try {
       const run = await executeManualSync(form);
-      setForm((current) => ({
-        ...current,
-        config_id: run.sync_config_id,
-      }));
       setDiffPreview(null);
       setSelectedRun(run);
-      await Promise.all([refreshHistory(run.id), refreshStatus()]);
+      await Promise.all([refreshHistory(run.id), refreshStatus(), refreshConfig()]);
       setInfo("Manual sync run completed.");
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || "Manual sync failed");
@@ -211,7 +222,7 @@ export default function SyncPage() {
         cron_expression: cronExpression,
         sync_mode: "scheduled",
       });
-      setForm(toInput(config));
+      applyStoredConfig(config);
       await refreshStatus();
       setInfo("Scheduled sync saved.");
     } catch (e: any) {
@@ -232,7 +243,7 @@ export default function SyncPage() {
     setInfo("");
     try {
       const { config, cancelled } = await cancelSyncSchedule(form.config_id);
-      setForm(toInput(config));
+      applyStoredConfig(config);
       await refreshStatus();
       setInfo(cancelled ? "Scheduled sync cancelled." : "No active schedule was registered for this config.");
     } catch (e: any) {
@@ -286,7 +297,9 @@ export default function SyncPage() {
     }
   };
 
-  const disabled = !form.coze_db_url.trim() || !form.dify_db_url.trim();
+  const hasCozeTarget = Boolean(form.coze_db_url.trim() || storedConfig?.has_stored_coze_db_url);
+  const hasDifyTarget = Boolean(form.dify_db_url.trim() || storedConfig?.has_stored_dify_db_url);
+  const disabled = !hasCozeTarget || !hasDifyTarget;
   const scheduledJobs = syncStatus?.scheduled_jobs || [];
   const currentSchedule = form.config_id
     ? scheduledJobs.find((job) => job.config_id === form.config_id) || null
@@ -330,8 +343,14 @@ export default function SyncPage() {
                 className="input input-mono"
                 value={form.coze_db_url}
                 onChange={(e) => updateField("coze_db_url", e.target.value)}
-                placeholder="postgresql://user:pass@host:5432/coze"
+                placeholder={storedConfig?.coze_db?.display_url || "postgresql://user:pass@host:5432/coze"}
               />
+              {storedConfig?.coze_db?.display_url ? (
+                <div style={{ marginTop: 6, fontSize: "0.78rem", color: "var(--c-text-tertiary)" }}>
+                  Stored source: <span style={{ fontFamily: "var(--font-mono)" }}>{storedConfig.coze_db.display_url}</span>
+                  {form.coze_db_url.trim() ? " (new value will replace it on save)" : " (leave blank to reuse it)"}
+                </div>
+              ) : null}
             </div>
 
             <div>
@@ -340,8 +359,14 @@ export default function SyncPage() {
                 className="input input-mono"
                 value={form.dify_db_url}
                 onChange={(e) => updateField("dify_db_url", e.target.value)}
-                placeholder="postgresql://user:pass@host:5432/dify"
+                placeholder={storedConfig?.dify_db?.display_url || "postgresql://user:pass@host:5432/dify"}
               />
+              {storedConfig?.dify_db?.display_url ? (
+                <div style={{ marginTop: 6, fontSize: "0.78rem", color: "var(--c-text-tertiary)" }}>
+                  Stored target: <span style={{ fontFamily: "var(--font-mono)" }}>{storedConfig.dify_db.display_url}</span>
+                  {form.dify_db_url.trim() ? " (new value will replace it on save)" : " (leave blank to reuse it)"}
+                </div>
+              ) : null}
             </div>
 
             <div>
@@ -459,9 +484,9 @@ export default function SyncPage() {
               <div style={{ marginTop: 20 }}>
                 <div className="section-title" style={{ fontSize: "0.95rem" }}>Selected Run Summary</div>
                 <p className="section-subtitle">
-                  {selectedRun
-                    ? `Run ${selectedRun.id} • ${formatTimestamp(selectedRun.started_at)}`
-                    : "No persisted sync run selected yet."}
+                {selectedRun
+                  ? `Run ${selectedRun.id} • ${formatTimestamp(selectedRun.started_at)}`
+                  : "No persisted sync run selected yet."}
                 </p>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginTop: 16 }}>
@@ -478,6 +503,10 @@ export default function SyncPage() {
                     Status: <strong>{selectedRun.status}</strong>
                     {selectedRun.completed_at ? ` • Completed ${formatTimestamp(selectedRun.completed_at)}` : ""}
                   </div>
+                ) : null}
+
+                {selectedRun?.audit ? (
+                  <RunAuditPanel audit={selectedRun.audit} />
                 ) : null}
               </div>
             </>
@@ -550,8 +579,8 @@ function toInput(config: SyncConfig): SyncConfigInput {
     config_id: config.id,
     name: config.name,
     coze_db_type: config.coze_db_type,
-    coze_db_url: config.coze_db_url,
-    dify_db_url: config.dify_db_url,
+    coze_db_url: "",
+    dify_db_url: "",
     sync_mode: config.sync_mode,
     cron_expression: config.cron_expression || "",
   };
@@ -611,6 +640,40 @@ function ConnectionCard({
       <div style={{ marginTop: 4 }}>
         {result.connected ? "Connected" : result.error || "Connection failed"}
       </div>
+    </div>
+  );
+}
+
+function RunAuditPanel({ audit }: { audit: NonNullable<SyncRunDetail["audit"]> }) {
+  const failures = audit.failure_samples || [];
+
+  return (
+    <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+      <div style={{ display: "grid", gap: 6 }}>
+        {audit.source_db?.display_url ? (
+          <div style={{ fontSize: "0.78rem", color: "var(--c-text-tertiary)" }}>
+            Source DB: <span style={{ fontFamily: "var(--font-mono)" }}>{audit.source_db.display_url}</span>
+          </div>
+        ) : null}
+        {audit.target_db?.display_url ? (
+          <div style={{ fontSize: "0.78rem", color: "var(--c-text-tertiary)" }}>
+            Target DB: <span style={{ fontFamily: "var(--font-mono)" }}>{audit.target_db.display_url}</span>
+          </div>
+        ) : null}
+      </div>
+
+      {audit.last_error ? (
+        <div className="alert alert--error">
+          <strong>Last error</strong>
+          <div style={{ marginTop: 4 }}>{audit.last_error}</div>
+        </div>
+      ) : null}
+
+      {failures.length > 1 ? (
+        <div style={{ fontSize: "0.78rem", color: "var(--c-text-tertiary)" }}>
+          {failures.length} failure samples captured in the persisted audit trail.
+        </div>
+      ) : null}
     </div>
   );
 }
