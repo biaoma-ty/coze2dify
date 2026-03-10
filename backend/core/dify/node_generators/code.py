@@ -13,7 +13,11 @@ _TYPE_MAP = {
     IRVariableType.NUMBER: "number",
     IRVariableType.BOOLEAN: "boolean",
     IRVariableType.OBJECT: "object",
-    IRVariableType.ARRAY: "array[any]",
+    # Dify code nodes require concrete array segment types. Generic arrays degrade to object arrays.
+    IRVariableType.ARRAY: "array[object]",
+    IRVariableType.ARRAY_STRING: "array[string]",
+    IRVariableType.ARRAY_NUMBER: "array[number]",
+    IRVariableType.ARRAY_OBJECT: "array[object]",
     IRVariableType.ANY: "string",
 }
 
