@@ -146,6 +146,7 @@ Some endpoints below exist in the API surface but are not all fully wired in the
 ### Sync
 
 The sync API covers persisted config, manual execution, diff preview, conflict resolution, and cron scheduling.
+Delete gaps are governed by an explicit policy layer; see [`docs/delete-sync-policy.md`](docs/delete-sync-policy.md).
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -160,7 +161,7 @@ The sync API covers persisted config, manual execution, diff preview, conflict r
 ### Safety Notes
 
 - Sync config and direct-write responses no longer echo raw database URLs; API payloads return redacted `display_url` references instead.
-- Persisted sync runs and conversion tasks now carry operator audit metadata, including redacted source/target DB references and the latest write attempt details.
+- Persisted sync runs and conversion tasks now carry operator audit metadata, including redacted source/target DB references, delete-policy metadata, and the latest write attempt details.
 - Reusing a saved sync config from the UI does not require re-entering the stored DB URL; leaving the redacted field blank keeps the persisted value unchanged.
 - Direct DB writes and sync remain operator-driven workflows. Treat them as privileged actions, and keep them behind trusted environments and credentials management.
 
@@ -199,7 +200,7 @@ The mapping table is the target design. Actual support quality varies by node ty
 | Continue | — | 🔴 Unmappable |
 | Comment | — | ⚪ Skipped |
 
-> See the full 42-type mapping in [`docs/node-mapping.md`](docs/node-mapping.md). Architecture details in [`docs/architecture.md`](docs/architecture.md). API reference in [`docs/api.md`](docs/api.md). Dev Mode guide in [`docs/dev-mode.md`](docs/dev-mode.md).
+> See the full 42-type mapping in [`docs/node-mapping.md`](docs/node-mapping.md). Architecture details in [`docs/architecture.md`](docs/architecture.md). API reference in [`docs/api.md`](docs/api.md). Delete policy guide in [`docs/delete-sync-policy.md`](docs/delete-sync-policy.md). Dev Mode guide in [`docs/dev-mode.md`](docs/dev-mode.md).
 
 ## 📁 Project Structure
 

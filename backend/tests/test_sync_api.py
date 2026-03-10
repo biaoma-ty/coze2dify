@@ -162,6 +162,7 @@ def test_sync_execute_endpoint_persists_history_and_exposes_detail(tmp_path, mon
         "unsupported": 0,
         "conflicts": 0,
     }
+    assert execute_data["delete_policy"]["mode"] == "observe_only"
     assert execute_data["items"][0]["status"] == "created"
     assert execute_data["items"][0]["target_app_id"] == "created-app"
 
@@ -184,6 +185,8 @@ def test_sync_execute_endpoint_persists_history_and_exposes_detail(tmp_path, mon
     assert config_payload["dify_db"]["display_url"] == "postgresql://***@dify.test/app"
     assert config_payload["has_stored_coze_db_url"] is True
     assert config_payload["has_stored_dify_db_url"] is True
+    assert config_payload["delete_mode"] == "observe_only"
+    assert config_payload["delete_policy"]["supported"] is True
 
     test_response = client.post(
         "/api/v1/sync/config/test",
@@ -205,6 +208,7 @@ def test_sync_execute_endpoint_persists_history_and_exposes_detail(tmp_path, mon
     assert histories[0].workflows_synced == 1
     assert histories[0].conflicts_resolved["audit"]["source_db"]["display_url"] == "postgresql://***@coze.test/app"
     assert histories[0].conflicts_resolved["audit"]["target_db"]["display_url"] == "postgresql://***@dify.test/app"
+    assert histories[0].conflicts_resolved["audit"]["delete_policy"]["mode"] == "observe_only"
     assert len(tasks) == 1
     assert tasks[0].sync_config_id == histories[0].sync_config_id
 
@@ -225,6 +229,17 @@ def test_sync_schedule_diff_and_conflict_endpoints_are_wired(tmp_path, monkeypat
         def preview_diff(self, db, config):
             return {
                 "config_id": config.id,
+                "delete_policy": {
+                    "mode": "observe_only",
+                    "label": "Observe Only",
+                    "supported": True,
+                    "destructive": False,
+                    "requires_approval": False,
+                    "summary": "Record delete intent only.",
+                    "rollback_requirement": "None.",
+                    "approval_requirement": "None.",
+                    "version": "2026-03-10",
+                },
                 "status": "partial",
                 "summary": {
                     "created": 1,
@@ -434,6 +449,37 @@ def test_restore_schedules_registers_only_enabled_scheduled_configs(tmp_path) ->
     assert len(scheduled_jobs) == 1
     assert restored_jobs[0]["config_id"] == scheduled_jobs[0]["config_id"]
     assert restored_jobs[0]["cron_expression"] == "0 3 * * *"
+
+
+def test_sync_config_rejects_soft_delete_until_rollback_exists(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-delete-policy.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    def override_get_db():
+        with session_factory() as db:
+            yield db
+
+    app = FastAPI()
+    app.include_router(api_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/sync/config",
+        json={
+            "name": "Blocked Delete Policy",
+            "coze_db_url": "postgresql://coze.test/app",
+            "dify_db_url": "postgresql://dify.test/app",
+            "delete_mode": "soft_delete",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "soft_delete is defined but intentionally unsupported" in response.json()["detail"]
 
 
 def test_app_startup_invokes_schedule_restore(monkeypatch) -> None:

@@ -13,6 +13,7 @@ from core.dify.db_reader import DifyDbReader
 from core.engine.conversion_service import ConversionService
 from core.security.redaction import build_database_ref, sanitize_exception
 from core.sync.conflict_resolver import ConflictResolver, ConflictStrategy
+from core.sync.delete_policy import build_delete_policy, delete_intent_status
 from core.sync.diff_detector import DiffDetector
 from db.models import MigrationTask, SyncConfig, SyncHistory
 
@@ -72,7 +73,7 @@ class SyncEngine:
             target_apps_by_id = {str(app.get("app_id") or ""): app for app in target_apps if app.get("app_id")}
             target_names = self._index_target_names(target_apps)
 
-            items.extend(self._collect_delete_gaps(mappings, source_ids, target_apps_by_id, summary))
+            items.extend(self._collect_delete_gaps(config, mappings, source_ids, target_apps_by_id, summary))
 
             for workflow in source_workflows:
                 source_id = self._workflow_id(workflow)
@@ -245,7 +246,7 @@ class SyncEngine:
         target_apps_by_id = {str(app.get("app_id") or ""): app for app in target_apps if app.get("app_id")}
         target_names = self._index_target_names(target_apps)
 
-        items.extend(self._collect_delete_gaps(mappings, source_ids, target_apps_by_id, summary))
+        items.extend(self._collect_delete_gaps(config, mappings, source_ids, target_apps_by_id, summary))
 
         source_snapshots: dict[str, dict[str, Any]] = {}
         target_snapshots: dict[str, dict[str, Any]] = {}
@@ -391,6 +392,7 @@ class SyncEngine:
 
         return {
             "config_id": config.id,
+            "delete_policy": build_delete_policy(config.delete_mode),
             "summary": summary,
             "items": items,
             "status": self._derive_status(summary),
@@ -538,6 +540,9 @@ class SyncEngine:
     def serialize_history(history: SyncHistory, *, include_items: bool = False) -> dict[str, Any]:
         payload = history.conflicts_resolved or {}
         summary = payload.get("summary") or SyncEngine._empty_summary()
+        audit_payload = payload.get("audit")
+        if not isinstance(audit_payload, dict):
+            audit_payload = None
         data = {
             "id": str(history.id),
             "sync_config_id": history.sync_config_id,
@@ -553,7 +558,8 @@ class SyncEngine:
                 **SyncEngine._empty_summary(),
                 **summary,
             },
-            "audit": payload.get("audit") or None,
+            "delete_policy": audit_payload.get("delete_policy") if audit_payload else None,
+            "audit": audit_payload,
         }
         if include_items:
             data["items"] = payload.get("items") or []
@@ -564,6 +570,8 @@ class SyncEngine:
         return {
             "config_name": config.name,
             "sync_mode": config.sync_mode,
+            "delete_mode": config.delete_mode,
+            "delete_policy": build_delete_policy(config.delete_mode),
             "cron_expression": config.cron_expression,
             "trigger_type": trigger_type,
             "source_db": build_database_ref(config.coze_db_url),
@@ -580,6 +588,8 @@ class SyncEngine:
         payload = dict(audit) if isinstance(audit, dict) else {}
         payload.setdefault("config_name", config.name)
         payload.setdefault("sync_mode", config.sync_mode)
+        payload.setdefault("delete_mode", config.delete_mode)
+        payload.setdefault("delete_policy", build_delete_policy(config.delete_mode))
         payload.setdefault("cron_expression", config.cron_expression)
         payload.setdefault("trigger_type", trigger_type)
         payload.setdefault("source_db", build_database_ref(config.coze_db_url))
@@ -654,8 +664,9 @@ class SyncEngine:
         message: str,
         target_app_id: str | None = None,
         conversion_id: str | None = None,
+        delete_policy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        return {
+        item = {
             "action": action,
             "status": status,
             "source_workflow_id": source_workflow_id,
@@ -664,6 +675,9 @@ class SyncEngine:
             "conversion_id": conversion_id,
             "message": message,
         }
+        if delete_policy is not None:
+            item["delete_policy"] = delete_policy
+        return item
 
     @staticmethod
     def _workflow_id(workflow: dict[str, Any]) -> str:
@@ -804,18 +818,28 @@ class SyncEngine:
     @classmethod
     def _collect_delete_gaps(
         cls,
+        config: SyncConfig,
         mappings: dict[str, dict[str, Any]],
         source_ids: set[str],
         target_apps_by_id: dict[str, dict[str, Any]],
         summary: dict[str, int],
     ) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
+        delete_policy = build_delete_policy(
+            config.delete_mode,
+            intent_status=delete_intent_status(config.delete_mode),
+        )
         for source_id, mapping in mappings.items():
             if source_id in source_ids:
                 continue
             target_app_id = mapping["app_id"]
             if target_app_id not in target_apps_by_id:
                 continue
+            message = (
+                "Delete intent recorded in observe-only mode. The existing Dify app was left untouched."
+                if config.delete_mode == "observe_only"
+                else "Delete intent recorded and blocked pending operator approval. The existing Dify app was left untouched."
+            )
             summary["unsupported"] += 1
             items.append(
                 cls._result_item(
@@ -824,7 +848,8 @@ class SyncEngine:
                     source_workflow_id=source_id,
                     source_workflow_name=str(mapping.get("source_workflow_name") or source_id),
                     target_app_id=target_app_id,
-                    message="Delete sync is not supported in the manual sync MVP. The existing Dify app was left untouched.",
+                    message=message,
+                    delete_policy=delete_policy,
                 )
             )
         return items

@@ -101,6 +101,32 @@ class PreviewDifyReader:
         return self.workflows.get(app_id)
 
 
+class EmptyCozeReader:
+    def __init__(self, db_url: str) -> None:
+        self.db_url = db_url
+
+    def list_workflows(self) -> list[dict[str, str]]:
+        return []
+
+    def read_workflow(self, workflow_id: str) -> dict[str, object] | None:
+        return None
+
+
+class DeletePreviewDifyReader:
+    def __init__(self, db_url: str) -> None:
+        self.db_url = db_url
+
+    def list_apps(self) -> list[dict[str, str]]:
+        return [
+            {"app_id": "app-delete", "name": "Deleted Flow"},
+        ]
+
+    def read_workflow(self, app_id: str) -> dict[str, object] | None:
+        if app_id != "app-delete":
+            return None
+        return {"app_id": app_id, "graph": {"nodes": [], "edges": []}, "features": {}}
+
+
 class FakeConversionService:
     def __init__(self) -> None:
         self.write_calls: list[tuple[str, str | None, str | None]] = []
@@ -248,6 +274,7 @@ def test_execute_sync_persists_create_and_update_results(tmp_path) -> None:
         "unsupported": 0,
         "conflicts": 0,
     }
+    assert result["delete_policy"]["mode"] == "observe_only"
     assert len(result["items"]) == 2
     assert {item["status"] for item in result["items"]} == {"created", "updated"}
     assert len(histories) == 1
@@ -349,6 +376,57 @@ def test_preview_diff_detects_create_update_skip_and_conflict_without_persisting
         "wf-conflict",
     }
     assert len(task_count) == 2
+
+
+def test_preview_diff_records_delete_intent_under_selected_policy(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-delete-preview.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    sync_engine = SyncEngine(
+        ConversionService(),
+        coze_reader_factory=EmptyCozeReader,
+        dify_reader_factory=DeletePreviewDifyReader,
+    )
+
+    with session_factory() as db:
+        config = SyncConfig(
+            name="Delete Preview",
+            coze_db_url="postgresql://coze.test/app",
+            dify_db_url="postgresql://dify.test/app",
+            delete_mode="approval_required",
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+
+        db.add(
+            MigrationTask(
+                sync_config_id=config.id,
+                source_type="database",
+                source_workflow_id="wf-delete",
+                source_workflow_name="Deleted Flow",
+                status="written",
+                ir_snapshot={"write_result": {"app_id": "app-delete", "mode": "create"}},
+                dify_dsl="workflow: {}\n",
+                report={},
+                completed_at=_utcnow(),
+            )
+        )
+        db.commit()
+
+        result = sync_engine.preview_diff(db, config)
+
+    assert result["status"] == "partial"
+    assert result["summary"]["unsupported"] == 1
+    assert result["delete_policy"]["mode"] == "approval_required"
+    assert result["items"][0]["action"] == "delete"
+    assert result["items"][0]["status"] == "unsupported"
+    assert result["items"][0]["delete_policy"]["mode"] == "approval_required"
+    assert result["items"][0]["delete_policy"]["intent_status"] == "approval_pending"
 
 
 def test_resolve_conflict_source_wins_updates_history_and_persists_resolution(tmp_path) -> None:

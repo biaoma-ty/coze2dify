@@ -19,6 +19,7 @@ class SyncConfig(Base):
     coze_db_url: Mapped[str] = mapped_column(String(500))
     dify_db_url: Mapped[str] = mapped_column(String(500))
     sync_mode: Mapped[str] = mapped_column(String(50), default="manual")
+    delete_mode: Mapped[str] = mapped_column(String(50), default="observe_only")
     cron_expression: Mapped[str | None] = mapped_column(String(100), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
