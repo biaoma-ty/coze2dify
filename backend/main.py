@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.router import api_router
+from api.endpoints import sync as sync_endpoints
 from db.database import Base, engine
 from db import models as _db_models  # noqa: F401
 
@@ -26,6 +27,7 @@ app.include_router(api_router, prefix="/api/v1")
 @app.on_event("startup")
 def ensure_project_tables() -> None:
     Base.metadata.create_all(bind=engine)
+    sync_endpoints.restore_schedules()
 
 
 @app.get("/health")
