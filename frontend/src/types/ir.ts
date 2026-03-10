@@ -30,6 +30,19 @@ export interface WorkflowNode {
   title: string;
 }
 
+export interface WorkflowGraphNodeSummary {
+  id: string;
+  type: string;
+  title: string;
+  parent_id: string | null;
+}
+
+export interface WorkflowGraphSummary {
+  node_count: number;
+  edge_count: number;
+  nodes: WorkflowGraphNodeSummary[];
+}
+
 export interface UploadResult {
   workflow_id: string;
   node_count: number;
@@ -102,6 +115,8 @@ export interface ConversionDetail {
   source_workflow_id: string;
   source_workflow_name: string;
   dsl: Record<string, unknown>;
+  source_graph: WorkflowGraphSummary | null;
+  target_graph: WorkflowGraphSummary | null;
   report: ConversionReport;
   write_result: WriteResult | null;
   audit: ConversionAudit | null;

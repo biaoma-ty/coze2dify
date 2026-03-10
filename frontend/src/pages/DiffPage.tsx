@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import ConversionVisualBoard from "../components/diff/ConversionVisualBoard";
 import StepNavigation from "../components/layout/StepNavigation";
 import MappingTable from "../components/mapping/MappingTable";
 import ConversionReportView from "../components/result/ConversionReport";
@@ -9,12 +10,21 @@ import { getConversion } from "../api/conversion";
 export default function DiffPage() {
   const { conversionId } = useParams();
   const navigate = useNavigate();
-  const { conversionId: storedConversionId, conversionReport, setConversion } = useWorkflowStore();
+  const {
+    conversionId: storedConversionId,
+    conversionDetail,
+    conversionReport,
+    setConversion,
+  } = useWorkflowStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeDetail =
+    conversionDetail && storedConversionId === conversionId ? conversionDetail : null;
+  const activeReport =
+    activeDetail?.report || (storedConversionId === conversionId ? conversionReport : null);
 
   useEffect(() => {
-    if (!conversionId || (conversionReport && storedConversionId === conversionId)) {
+    if (!conversionId || activeDetail) {
       return;
     }
 
@@ -24,7 +34,7 @@ export default function DiffPage() {
     getConversion(conversionId)
       .then((result) => {
         if (!cancelled) {
-          setConversion(result.conversion_id, result.report);
+          setConversion(result.conversion_id, result.report, result);
         }
       })
       .catch((e: any) => {
@@ -41,9 +51,9 @@ export default function DiffPage() {
     return () => {
       cancelled = true;
     };
-  }, [conversionId, conversionReport, setConversion, storedConversionId]);
+  }, [activeDetail, conversionId, setConversion]);
 
-  if (loading && !conversionReport) {
+  if (loading && !activeReport) {
     return (
       <div className="fade-in">
         <StepNavigation currentStep={2} />
@@ -55,7 +65,7 @@ export default function DiffPage() {
     );
   }
 
-  if (error && !conversionReport) {
+  if (error && !activeReport) {
     return (
       <div className="fade-in">
         <StepNavigation currentStep={2} />
@@ -67,7 +77,7 @@ export default function DiffPage() {
     );
   }
 
-  if (!conversionReport) {
+  if (!activeReport) {
     return (
       <div className="fade-in">
         <StepNavigation currentStep={2} />
@@ -90,11 +100,25 @@ export default function DiffPage() {
         </p>
       </div>
 
-      <ConversionReportView report={conversionReport} />
+      <ConversionReportView report={activeReport} />
+
+      <div style={{ marginTop: 24 }}>
+        <div className="section-title" style={{ marginBottom: 12 }}>Visual Diff</div>
+        <p className="section-subtitle">
+          Grouped by mapping outcome, with persisted source and target graph summaries.
+        </p>
+        <div style={{ marginTop: 16 }}>
+          <ConversionVisualBoard
+            report={activeReport}
+            sourceGraph={activeDetail?.source_graph || null}
+            targetGraph={activeDetail?.target_graph || null}
+          />
+        </div>
+      </div>
 
       <div style={{ marginTop: 24 }}>
         <div className="section-title" style={{ marginBottom: 16 }}>Node Details</div>
-        <MappingTable results={conversionReport.node_results} />
+        <MappingTable results={activeReport.node_results} />
       </div>
 
       {error && (
