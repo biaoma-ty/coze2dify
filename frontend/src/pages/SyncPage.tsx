@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SyncVisualBoard from "../components/diff/SyncVisualBoard";
+import DeletePolicyNotice from "../components/sync/DeletePolicyNotice";
 import SyncHistoryTable from "../components/sync/SyncHistoryTable";
 import {
   cancelSyncSchedule,
@@ -19,6 +20,8 @@ import type {
   SyncConfigInput,
   SyncConflictStrategy,
   SyncConnectionResult,
+  SyncDeleteMode,
+  SyncDeletePolicy,
   SyncDiffPreview,
   SyncHistoryEntry,
   SyncRunDetail,
@@ -32,6 +35,7 @@ const DEFAULT_FORM: SyncConfigInput = {
   coze_db_url: "",
   dify_db_url: "",
   sync_mode: "manual",
+  delete_mode: "observe_only",
   cron_expression: "",
 };
 
@@ -42,6 +46,42 @@ const EMPTY_SUMMARY: SyncSummary = {
   skipped: 0,
   unsupported: 0,
   conflicts: 0,
+};
+
+const DELETE_POLICY_PRESETS: Record<SyncDeleteMode, SyncDeletePolicy> = {
+  observe_only: {
+    mode: "observe_only",
+    version: "2026-03-10",
+    label: "Observe Only",
+    supported: true,
+    destructive: false,
+    requires_approval: false,
+    summary: "Record delete intent in diff and history only. Leave the Dify app untouched.",
+    rollback_requirement: "No rollback path is required because no delete is executed.",
+    approval_requirement: "None.",
+  },
+  approval_required: {
+    mode: "approval_required",
+    version: "2026-03-10",
+    label: "Approval Required",
+    supported: true,
+    destructive: false,
+    requires_approval: true,
+    summary: "Record delete intent and block execution until an explicit operator approval workflow exists.",
+    rollback_requirement: "Capture the current Dify app snapshot before any future destructive delete flow is approved.",
+    approval_requirement: "An explicit operator approval artifact must exist before delete execution can be enabled.",
+  },
+  soft_delete: {
+    mode: "soft_delete",
+    version: "2026-03-10",
+    label: "Soft Delete",
+    supported: false,
+    destructive: true,
+    requires_approval: true,
+    summary: "Reserved for a future archive or tombstone flow. It is intentionally blocked in the current product.",
+    rollback_requirement: "A reversible archive and restore path must exist before soft-delete can be enabled.",
+    approval_requirement: "Approval plus restore automation are mandatory before enablement.",
+  },
 };
 
 export default function SyncPage() {
@@ -306,6 +346,11 @@ export default function SyncPage() {
     : null;
   const runSummary = selectedRun?.summary || EMPTY_SUMMARY;
   const previewSummary = diffPreview?.summary || EMPTY_SUMMARY;
+  const currentDeleteMode = form.delete_mode || "observe_only";
+  const configuredDeletePolicy =
+    storedConfig?.delete_mode === currentDeleteMode && storedConfig.delete_policy
+      ? storedConfig.delete_policy
+      : DELETE_POLICY_PRESETS[currentDeleteMode];
 
   return (
     <div className="fade-in">
@@ -381,6 +426,28 @@ export default function SyncPage() {
                 Use standard cron format in UTC. Example: `0 3 * * *`
               </div>
             </div>
+
+            <div>
+              <label className="label">Delete Policy</label>
+              <select
+                className="input"
+                value={currentDeleteMode}
+                onChange={(e) => updateField("delete_mode", e.target.value)}
+              >
+                <option value="observe_only">Observe Only</option>
+                <option value="approval_required">Approval Required</option>
+                <option value="soft_delete" disabled>
+                  Soft Delete (Blocked)
+                </option>
+              </select>
+              <div style={{ marginTop: 6, fontSize: "0.78rem", color: "var(--c-text-tertiary)" }}>
+                Defines how delete gaps are represented when a previously synced Coze workflow disappears.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <DeletePolicyNotice title="Configured Delete Policy" policy={configuredDeletePolicy} />
           </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
@@ -535,6 +602,10 @@ export default function SyncPage() {
               Preview status: <strong>{diffPreview.status}</strong> • Config {diffPreview.config_id}
             </div>
 
+            <div style={{ marginTop: 16 }}>
+              <DeletePolicyNotice title="Delete Gap Policy" policy={diffPreview.delete_policy} />
+            </div>
+
             <div style={{ marginTop: 18 }}>
               <SyncVisualBoard
                 items={diffPreview.items}
@@ -582,6 +653,7 @@ function toInput(config: SyncConfig): SyncConfigInput {
     coze_db_url: "",
     dify_db_url: "",
     sync_mode: config.sync_mode,
+    delete_mode: config.delete_mode,
     cron_expression: config.cron_expression || "",
   };
 }
@@ -667,6 +739,10 @@ function RunAuditPanel({ audit }: { audit: NonNullable<SyncRunDetail["audit"]> }
           <strong>Last error</strong>
           <div style={{ marginTop: 4 }}>{audit.last_error}</div>
         </div>
+      ) : null}
+
+      {audit.delete_policy ? (
+        <DeletePolicyNotice title="Run Delete Policy" policy={audit.delete_policy} />
       ) : null}
 
       {failures.length > 1 ? (

@@ -11,6 +11,7 @@ from core.coze.db_reader import CozeDbReader
 from core.dify.db_reader import DifyDbReader
 from core.security.redaction import build_database_ref, sanitize_exception
 from core.sync.conflict_resolver import ConflictStrategy
+from core.sync.delete_policy import DeleteMode, build_delete_policy, ensure_delete_mode_supported
 from core.sync.scheduler import SyncScheduler
 from core.sync.sync_engine import SyncEngine
 from db.database import SessionLocal, get_db
@@ -29,6 +30,7 @@ class SyncConfigRequest(BaseModel):
     coze_db_url: str
     dify_db_url: str
     sync_mode: str = "manual"
+    delete_mode: DeleteMode = DeleteMode.OBSERVE_ONLY
     cron_expression: str | None = None
 
 
@@ -161,6 +163,10 @@ async def resolve_conflict(
 
 def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
     config: SyncConfig | None = None
+    try:
+        delete_mode = ensure_delete_mode_supported(req.delete_mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if req.config_id is not None:
         config = db.get(SyncConfig, req.config_id)
@@ -173,6 +179,7 @@ def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
                 SyncConfig.coze_db_url == req.coze_db_url,
                 SyncConfig.dify_db_url == req.dify_db_url,
                 SyncConfig.sync_mode == req.sync_mode,
+                SyncConfig.delete_mode == delete_mode.value,
             )
             .order_by(SyncConfig.updated_at.desc(), SyncConfig.id.desc())
         )
@@ -187,6 +194,7 @@ def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
             coze_db_url=coze_db_url,
             dify_db_url=dify_db_url,
             sync_mode=req.sync_mode,
+            delete_mode=delete_mode.value,
             cron_expression=req.cron_expression,
             enabled=True,
         )
@@ -196,6 +204,7 @@ def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
         config.coze_db_url = coze_db_url
         config.dify_db_url = dify_db_url
         config.sync_mode = req.sync_mode
+        config.delete_mode = delete_mode.value
         config.cron_expression = req.cron_expression
         config.enabled = True
 
@@ -217,6 +226,8 @@ def _serialize_config(config: SyncConfig | None) -> dict[str, object] | None:
         "has_stored_coze_db_url": bool(config.coze_db_url),
         "has_stored_dify_db_url": bool(config.dify_db_url),
         "sync_mode": config.sync_mode,
+        "delete_mode": config.delete_mode,
+        "delete_policy": build_delete_policy(config.delete_mode),
         "cron_expression": config.cron_expression,
         "enabled": config.enabled,
         "created_at": config.created_at.isoformat() if config.created_at else None,

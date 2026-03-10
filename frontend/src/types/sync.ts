@@ -3,6 +3,20 @@ import type { DatabaseTargetRef } from "./audit";
 export type SyncMode = "manual" | "scheduled";
 export type SyncRunStatus = "completed" | "partial" | "failed" | "running";
 export type SyncConflictStrategy = "source_wins" | "target_wins" | "manual";
+export type SyncDeleteMode = "observe_only" | "approval_required" | "soft_delete";
+
+export interface SyncDeletePolicy {
+  mode: SyncDeleteMode;
+  version: string;
+  label: string;
+  supported: boolean;
+  destructive: boolean;
+  requires_approval: boolean;
+  summary: string;
+  rollback_requirement: string;
+  approval_requirement: string;
+  intent_status?: "observed" | "approval_pending" | "blocked";
+}
 
 export interface SyncConfig {
   id: number;
@@ -13,6 +27,8 @@ export interface SyncConfig {
   has_stored_coze_db_url: boolean;
   has_stored_dify_db_url: boolean;
   sync_mode: SyncMode;
+  delete_mode: SyncDeleteMode;
+  delete_policy: SyncDeletePolicy;
   cron_expression: string | null;
   enabled: boolean;
   created_at: string | null;
@@ -26,6 +42,7 @@ export interface SyncConfigInput {
   coze_db_url: string;
   dify_db_url: string;
   sync_mode?: SyncMode;
+  delete_mode?: SyncDeleteMode;
   cron_expression?: string | null;
 }
 
@@ -66,6 +83,7 @@ export interface SyncRunItem {
   target_app_id: string | null;
   conversion_id: string | null;
   message: string;
+  delete_policy?: SyncDeletePolicy;
   resolution?: SyncResolution;
 }
 
@@ -85,6 +103,8 @@ export interface SyncStatus {
 export interface SyncRunAudit {
   config_name?: string;
   sync_mode?: string;
+  delete_mode?: SyncDeleteMode;
+  delete_policy?: SyncDeletePolicy | null;
   cron_expression?: string | null;
   trigger_type?: string;
   source_db?: DatabaseTargetRef | null;
@@ -112,6 +132,7 @@ export interface SyncHistoryEntry {
   workflows_failed: number;
   conflicts_count: number;
   summary: SyncSummary;
+  delete_policy?: SyncDeletePolicy | null;
   audit?: SyncRunAudit | null;
 }
 
@@ -122,6 +143,7 @@ export interface SyncRunDetail extends SyncHistoryEntry {
 export interface SyncDiffPreview {
   config_id: number;
   status: Exclude<SyncRunStatus, "running">;
+  delete_policy: SyncDeletePolicy;
   summary: SyncSummary;
   items: SyncRunItem[];
 }

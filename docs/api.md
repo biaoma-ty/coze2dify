@@ -158,6 +158,12 @@ Safety behavior:
 
 Create or update sync configuration (source DB + target DB connection info).
 
+Request supports `delete_mode` with:
+
+- `observe_only` (default)
+- `approval_required`
+- `soft_delete` (defined but rejected until rollback support exists)
+
 ### `GET /sync/config`
 
 Get current sync configuration.
@@ -166,6 +172,7 @@ Safety behavior:
 
 - stored source/target DB URLs are returned as redacted references such as `postgresql://***@host/db`
 - blank DB URL fields on follow-up save/run requests keep the persisted value for the referenced `config_id`
+- responses include the active `delete_policy` so operators can see rollback and approval requirements
 
 ### `POST /sync/config/test`
 
@@ -210,6 +217,9 @@ Cancel scheduled sync for a persisted config.
 ### `POST /sync/diff`
 
 Compare source/target differences without executing sync.
+
+Diff payloads include the active `delete_policy`, and delete-gap items carry structured policy metadata rather
+than a generic unsupported message alone.
 
 ### `POST /sync/conflicts/{id}/resolve`
 

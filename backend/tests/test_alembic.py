@@ -23,10 +23,12 @@ def test_alembic_upgrade_and_downgrade_round_trip(tmp_path) -> None:
 
     engine = create_engine(db_url, connect_args={"check_same_thread": False})
     upgraded_tables = set(inspect(engine).get_table_names())
+    sync_config_columns = {column["name"] for column in inspect(engine).get_columns("sync_configs")}
     engine.dispose()
 
     assert PROJECT_TABLES.issubset(upgraded_tables)
     assert "alembic_version" in upgraded_tables
+    assert "delete_mode" in sync_config_columns
 
     command.downgrade(config, "base")
 

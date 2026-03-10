@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SyncVisualBoard from "../components/diff/SyncVisualBoard";
+import DeletePolicyNotice from "../components/sync/DeletePolicyNotice";
 import SyncHistoryTable from "../components/sync/SyncHistoryTable";
 import { getSyncHistoryDetail, listSyncHistory } from "../api/sync";
 import type { SyncHistoryEntry, SyncRunDetail } from "../types/sync";
@@ -146,6 +147,12 @@ export default function SyncHistoryPage() {
                   {selectedRun.audit.last_error ? (
                     <div className="alert alert--error">{selectedRun.audit.last_error}</div>
                   ) : null}
+                </div>
+              ) : null}
+
+              {selectedRun.delete_policy ? (
+                <div style={{ marginTop: 18 }}>
+                  <DeletePolicyNotice title="Run Delete Policy" policy={selectedRun.delete_policy} />
                 </div>
               ) : null}
 

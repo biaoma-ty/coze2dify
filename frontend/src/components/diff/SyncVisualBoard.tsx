@@ -134,6 +134,15 @@ function SyncRunCard({
 
       <div className="change-item__note">{item.message}</div>
 
+      {item.delete_policy ? (
+        <div className="change-item__note change-item__note--warning">
+          {item.delete_policy.label} • {item.delete_policy.summary}
+          <div style={{ marginTop: 4 }}>
+            Rollback: {item.delete_policy.rollback_requirement}
+          </div>
+        </div>
+      ) : null}
+
       {item.resolution ? (
         <div className="change-item__note change-item__note--info">
           {item.resolution.status} • {item.resolution.strategy}
