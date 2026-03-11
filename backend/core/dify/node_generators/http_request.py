@@ -17,11 +17,16 @@ class HTTPRequestNodeGenerator:
                 var_entry["value_selector"] = var_transformer.to_selector(inp.ref)
             variables.append(var_entry)
 
+        # Convert headers dict to Dify's newline-separated string format
+        raw_headers = config.get("headers", "")
+        if isinstance(raw_headers, dict):
+            raw_headers = "\n".join(f"{k}: {v}" for k, v in raw_headers.items())
+
         return {
             "variables": variables,
             "method": str(config.get("method", "get")).lower(),
             "url": config.get("url", ""),
-            "headers": config.get("headers", ""),
+            "headers": raw_headers,
             "params": config.get("params", ""),
             "body": {"type": config.get("body_type", "none"), "data": config.get("body", "")},
             "authorization": config.get("authorization", {"type": "no-auth"}),

@@ -24,9 +24,20 @@ class LLMNodeGenerator:
             },
         }
 
-        # Prompt template
+        # Prompt template — inject variable references as {{#...#}} template syntax
         prompt = config.get("prompt_template", "")
         system_prompt = config.get("system_prompt", "")
+
+        # Replace input variable names with Dify template references in prompt text
+        for inp in ir_node.inputs:
+            if inp.ref:
+                template_ref = var_transformer.to_template(inp.ref)
+                # Replace {{name}} or {name} placeholders with Dify template syntax
+                if inp.name:
+                    prompt = prompt.replace("{{" + inp.name + "}}", template_ref)
+                    prompt = prompt.replace("{" + inp.name + "}", template_ref)
+                    system_prompt = system_prompt.replace("{{" + inp.name + "}}", template_ref)
+                    system_prompt = system_prompt.replace("{" + inp.name + "}", template_ref)
 
         prompts = []
         if system_prompt:
@@ -34,11 +45,9 @@ class LLMNodeGenerator:
         prompts.append({"role": "user", "text": prompt})
         extra["prompt_template"] = prompts
 
-        # Transform variable references in inputs
-        for inp in ir_node.inputs:
-            if inp.ref:
-                selector = var_transformer.to_selector(inp.ref)
-                extra.setdefault("variable_selector", []).append(selector)
+        # Dify LLM nodes use context for variable bindings
+        context: dict[str, Any] = {"enabled": False, "variable_selector": []}
+        extra["context"] = context
 
         return extra
 

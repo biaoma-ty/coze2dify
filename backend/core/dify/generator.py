@@ -4,8 +4,8 @@ from typing import Any
 
 import yaml
 
-from core.ir.models import IREdge, IRNode, IRVariable, IRWorkflow
-from core.ir.types import IRNodeType, IRVariableType
+from core.ir.models import IREdge, IRNode, IRPosition, IRVariable, IRVariableRef, IRWorkflow
+from core.ir.types import IRConditionOperator, IRNodeType, IRVariableType
 
 from .edge_builder import EdgeBuilder
 from .models import DifyDSL, DifyEdge, DifyGraph, DifyNode, DifyNodeData, DifyWorkflow
@@ -63,6 +63,10 @@ _IR_TO_INPUT_TYPE: dict[IRVariableType, str] = {
 
 _ITERATION_NODE_Z_INDEX = 1
 _COMPOSITE_CHILD_Z_INDEX = 1002
+_LENGTH_OPERATOR_REWRITE = {
+    IRConditionOperator.LENGTH_GREATER_THAN: IRConditionOperator.GREATER_THAN,
+    IRConditionOperator.LENGTH_LESS_THAN: IRConditionOperator.LESS_THAN,
+}
 
 # Force import node generators so they register themselves
 from core.dify.node_generators import code as _code_generator  # noqa: F401, E402
@@ -78,16 +82,17 @@ class DifyGenerator:
         self.var_transformer = VariableTransformer()
 
     def generate(self, ir_workflow: IRWorkflow) -> DifyDSL:
-        flat_nodes = self._flatten_nodes(ir_workflow.nodes)
+        normalized_workflow = self._prepare_workflow(ir_workflow)
+        flat_nodes = self._flatten_nodes(normalized_workflow.nodes)
         node_map = {n.id: n for n in flat_nodes}
         edge_builder = EdgeBuilder(node_map)
 
         dify_nodes: list[DifyNode] = []
-        for ir_node in ir_workflow.nodes:
+        for ir_node in normalized_workflow.nodes:
             dify_nodes.extend(self._generate_nodes(ir_node))
 
-        all_edges = edge_builder.build_edges(ir_workflow.edges)
-        for ir_node in ir_workflow.nodes:
+        all_edges = edge_builder.build_edges(normalized_workflow.edges)
+        for ir_node in normalized_workflow.nodes:
             all_edges.extend(self._build_composite_edges(ir_node, edge_builder))
 
         graph = DifyGraph(nodes=dify_nodes, edges=all_edges)
@@ -103,6 +108,14 @@ class DifyGenerator:
             },
             workflow=workflow,
         )
+
+    def _prepare_workflow(self, ir_workflow: IRWorkflow) -> IRWorkflow:
+        normalized_workflow = ir_workflow.model_copy(deep=True)
+        normalized_workflow.nodes, normalized_workflow.edges = self._rewrite_length_condition_nodes(
+            normalized_workflow.nodes,
+            normalized_workflow.edges,
+        )
+        return normalized_workflow
 
     def _generate_nodes(self, ir_node: IRNode, parent: IRNode | None = None) -> list[DifyNode]:
         nodes: list[DifyNode] = []
@@ -170,6 +183,108 @@ class DifyGenerator:
             if node.children:
                 flattened.extend(self._flatten_nodes(node.children))
         return flattened
+
+    def _rewrite_length_condition_nodes(
+        self,
+        nodes: list[IRNode],
+        edges: list[IREdge],
+    ) -> tuple[list[IRNode], list[IREdge]]:
+        rewritten_nodes: list[IRNode] = []
+        rewritten_edges = list(edges)
+
+        for node in nodes:
+            if node.children:
+                node.children, node.child_edges = self._rewrite_length_condition_nodes(node.children, node.child_edges)
+
+            helper_nodes = self._make_length_helper_nodes(node)
+            if helper_nodes:
+                rewritten_edges = self._wire_length_helpers(rewritten_edges, helper_nodes, node.id)
+                rewritten_nodes.extend(helper_nodes)
+
+            rewritten_nodes.append(node)
+
+        return rewritten_nodes, rewritten_edges
+
+    def _make_length_helper_nodes(self, node: IRNode) -> list[IRNode]:
+        if node.node_type != IRNodeType.CONDITION:
+            return []
+
+        helper_specs: list[tuple[Any, IRVariableRef, IRConditionOperator]] = []
+        for branch in node.branches:
+            for condition in branch.conditions:
+                rewritten_operator = _LENGTH_OPERATOR_REWRITE.get(condition.operator)
+                if not rewritten_operator:
+                    continue
+                helper_specs.append((condition, condition.left.model_copy(deep=True), rewritten_operator))
+
+        if not helper_specs:
+            return []
+
+        helper_nodes: list[IRNode] = []
+        total_helpers = len(helper_specs)
+
+        for index, (condition, original_ref, rewritten_operator) in enumerate(helper_specs, start=1):
+            helper_id = f"{node.id}__len_{index}"
+            output_name = f"length_{index}"
+            x_offset = 320 * (total_helpers - index + 1)
+
+            helper_nodes.append(
+                IRNode(
+                    id=helper_id,
+                    node_type=IRNodeType.CODE,
+                    title=f"{node.title or 'Condition'} Length Helper",
+                    description="Synthetic helper for Coze length comparison semantics.",
+                    position=IRPosition(x=node.position.x - x_offset, y=node.position.y),
+                    inputs=[IRVariable(name="value", var_type=IRVariableType.ANY, ref=original_ref)],
+                    outputs=[IRVariable(name=output_name, var_type=IRVariableType.INTEGER)],
+                    config={
+                        "language": "python3",
+                        "code": self._build_length_helper_code(output_name),
+                    },
+                    source_type_name="SyntheticLengthHelper",
+                )
+            )
+
+            condition.left = IRVariableRef(source_node_id=helper_id, field_name=output_name)
+            condition.operator = rewritten_operator
+
+        return helper_nodes
+
+    def _wire_length_helpers(
+        self,
+        edges: list[IREdge],
+        helper_nodes: list[IRNode],
+        condition_node_id: str,
+    ) -> list[IREdge]:
+        if not helper_nodes:
+            return edges
+
+        first_helper_id = helper_nodes[0].id
+        rewired_edges = [
+            edge.model_copy(update={"target_node_id": first_helper_id})
+            if edge.target_node_id == condition_node_id
+            else edge
+            for edge in edges
+        ]
+
+        for current_helper, next_helper in zip(helper_nodes, helper_nodes[1:]):
+            rewired_edges.append(IREdge(source_node_id=current_helper.id, target_node_id=next_helper.id))
+
+        rewired_edges.append(IREdge(source_node_id=helper_nodes[-1].id, target_node_id=condition_node_id))
+        return rewired_edges
+
+    @staticmethod
+    def _build_length_helper_code(output_name: str) -> str:
+        return f"""def main(value):
+    if value is None:
+        length = 0
+    else:
+        try:
+            length = len(value)
+        except TypeError:
+            length = 0
+    return {{"{output_name}": length}}
+"""
 
     def _build_composite_edges(self, ir_node: IRNode, edge_builder: EdgeBuilder) -> list[DifyEdge]:
         edges: list[DifyEdge] = []

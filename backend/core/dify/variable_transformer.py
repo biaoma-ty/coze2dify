@@ -7,10 +7,19 @@ class VariableTransformer:
     """Converts IR variable references to Dify variable_selector format."""
 
     def to_selector(self, ref: IRVariableRef) -> list[str]:
+        if ref.source_type == "global_system":
+            return ["sys", ref.field_name] + ref.nested_path
+        if ref.source_type in ("global_app", "global_user"):
+            return ["env", ref.field_name] + ref.nested_path
         selector = [ref.source_node_id, ref.field_name]
         selector.extend(ref.nested_path)
         return selector
 
     def to_template(self, ref: IRVariableRef) -> str:
-        parts = [ref.source_node_id, ref.field_name] + ref.nested_path
+        if ref.source_type == "global_system":
+            parts = ["sys", ref.field_name] + ref.nested_path
+        elif ref.source_type in ("global_app", "global_user"):
+            parts = ["env", ref.field_name] + ref.nested_path
+        else:
+            parts = [ref.source_node_id, ref.field_name] + ref.nested_path
         return "{{#" + ".".join(parts) + "#}}"

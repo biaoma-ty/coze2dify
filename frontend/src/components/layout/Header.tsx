@@ -1,21 +1,45 @@
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { usePlatformStore } from "../../store/platformStore";
+import {
+  LayoutDashboard,
+  ArrowRightLeft,
+  RefreshCw,
+  History,
+  Settings,
+  Globe,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const navItems = [
-  { to: "/", label: "Migration", icon: "⚡" },
-  { to: "/browse", label: "Browse", icon: "🔍" },
-  { to: "/sync", label: "Sync", icon: "🔄" },
-  { to: "/history", label: "Conversions", icon: "📋" },
+const NAV_ITEMS: Array<{ to: string; labelKey: string; icon: LucideIcon }> = [
+  { to: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { to: "/migrate", labelKey: "nav.migrate", icon: ArrowRightLeft },
+  { to: "/sync", labelKey: "nav.sync", icon: RefreshCw },
+  { to: "/history", labelKey: "nav.history", icon: History },
+  { to: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
 
 export default function Header() {
   const location = useLocation();
+  const { t, i18n } = useTranslation();
   const devModeEnabled = usePlatformStore((s) => s.devModeEnabled);
 
   const isActive = (path: string) => {
-    if (path === "/") return location.pathname === "/" || location.pathname.startsWith("/diff") || location.pathname.startsWith("/mapping") || location.pathname.startsWith("/result");
-    if (path === "/sync") return location.pathname === "/sync";
+    if (path === "/") return location.pathname === "/";
+    if (path === "/migrate")
+      return (
+        location.pathname === "/migrate" ||
+        location.pathname.startsWith("/migrate/")
+      );
+    if (path === "/sync") return location.pathname.startsWith("/sync");
+    if (path === "/history") return location.pathname.startsWith("/history");
     return location.pathname.startsWith(path);
+  };
+
+  const toggleLang = () => {
+    const next = i18n.language === "zh" ? "en" : "zh";
+    i18n.changeLanguage(next);
+    localStorage.setItem("c2d-lang", next);
   };
 
   return (
@@ -36,7 +60,15 @@ export default function Header() {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-        <Link to="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
+        <Link
+          to="/"
+          style={{
+            textDecoration: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
           <div
             style={{
               width: 30,
@@ -68,7 +100,7 @@ export default function Header() {
         </Link>
 
         <nav style={{ display: "flex", gap: 2 }}>
-          {navItems.map(({ to, label, icon }) => {
+          {NAV_ITEMS.map(({ to, labelKey, icon: Icon }) => {
             const active = isActive(to);
             return (
               <Link
@@ -83,13 +115,17 @@ export default function Header() {
                   gap: 7,
                   fontSize: "0.82rem",
                   fontWeight: active ? 600 : 500,
-                  color: active ? "var(--c-accent)" : "var(--c-text-tertiary)",
-                  background: active ? "var(--c-accent-dim)" : "transparent",
+                  color: active
+                    ? "var(--c-accent)"
+                    : "var(--c-text-tertiary)",
+                  background: active
+                    ? "var(--c-accent-dim)"
+                    : "transparent",
                   transition: "all 0.2s ease",
                 }}
               >
-                <span style={{ fontSize: "0.78rem" }}>{icon}</span>
-                {label}
+                <Icon size={15} />
+                {t(labelKey)}
               </Link>
             );
           })}
@@ -113,6 +149,10 @@ export default function Header() {
             DEV MODE
           </span>
         )}
+        <button className="lang-switch" onClick={toggleLang}>
+          <Globe size={13} />
+          {i18n.language === "zh" ? "EN" : "ZH"}
+        </button>
         <div
           style={{
             fontSize: "0.68rem",
@@ -124,7 +164,7 @@ export default function Header() {
             border: "1px solid var(--c-border-subtle)",
           }}
         >
-          v0.1.0
+          v0.2.0
         </div>
       </div>
     </header>

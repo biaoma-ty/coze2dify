@@ -75,7 +75,7 @@ test("migrates a fixture into Dify and opens the workflow editor without browser
   const page = await context.newPage();
   trackBrowserErrors(page, browserErrors);
 
-  await page.goto(`${appBaseUrl}/`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${appBaseUrl}/migrate`, { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Import Coze Workflow" })).toBeVisible();
 
   await page.locator("#file-input").setInputFiles(fixturePath);
@@ -86,7 +86,7 @@ test("migrates a fixture into Dify and opens the workflow editor without browser
   expect(conversionMatch).not.toBeNull();
   const conversionId = conversionMatch![1];
 
-  await page.getByRole("button", { name: "Continue to Export →" }).click();
+  await page.getByRole("button", { name: /Continue to Export/i }).click();
   await page.waitForURL(new RegExp(`/result/${conversionId}$`), { timeout: 60_000 });
   await expect(page.getByRole("heading", { name: "Export Result" })).toBeVisible({ timeout: 60_000 });
 

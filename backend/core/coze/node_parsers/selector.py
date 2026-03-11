@@ -5,6 +5,7 @@ from typing import Any
 from core.ir.models import IRBranch, IRCondition, IRVariable, IRVariableRef
 from core.ir.types import IRConditionOperator, IRNodeType, IRVariableType
 
+from ..models import CozeBlockInputReference
 from . import register_parser
 
 _OPERATOR_MAP: dict[int, IRConditionOperator] = {
@@ -62,12 +63,8 @@ class SelectorNodeParser:
                 left_ref = IRVariableRef(source_node_id="", field_name="")
 
                 if left_value.get("type") in ("ref", "object_ref") and isinstance(left_value.get("content"), dict):
-                    content = left_value["content"]
-                    left_ref = IRVariableRef(
-                        source_node_id=content.get("blockID", ""),
-                        field_name=content.get("name", ""),
-                        nested_path=content.get("path", []),
-                    )
+                    ref_data = CozeBlockInputReference.model_validate(left_value["content"])
+                    left_ref = variable_resolver.resolve_reference(ref_data)
 
                 right_var = None
                 right_input = cond.get("right", {})
