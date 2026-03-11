@@ -53,7 +53,7 @@
 - **Verified path**: file-based Coze workflow conversion into Dify graph / DSL for the strict supported subset.
 - **Verified in local testing**: migrated workflow can be written into a local Dify PostgreSQL instance and opened in Dify.
 - **Strict runtime policy**: partial and unmappable nodes are blocked instead of emitting best-effort DSL.
-- **Coverage baseline**: a 42-case Coze workflow corpus tracks the mapped node classes behind the current support boundary.
+- **Coverage baseline**: a 42-case Coze workflow corpus plus semantic equivalence checks back the current support boundary.
 - **Partially built**: platform browse, dev mode helpers, and direct-write UI.
 - **Not production-ready yet**: incremental sync, migration history persistence, and several API/database import flows.
 
