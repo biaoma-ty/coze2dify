@@ -141,6 +141,42 @@ class SyncEngine:
                     )
                     conversion_id = str(conversion["conversion_id"])
                     self._attach_sync_config(db, conversion_id, config.id)
+                    if not bool((conversion.get("report") or {}).get("supported", True)):
+                        summary["unsupported"] += 1
+                        items.append(
+                            self._result_item(
+                                action="inspect",
+                                status="unsupported",
+                                source_workflow_id=source_id,
+                                source_workflow_name=source_name,
+                                target_app_id=mapping["app_id"] if mapping else None,
+                                conversion_id=conversion_id,
+                                message=(
+                                    (conversion.get("report") or {}).get("blocking_issues")
+                                    or ["Blocked by the strict supported subset."]
+                                )[0],
+                            )
+                        )
+                        continue
+                    if bool((conversion.get("report") or {}).get("requires_manual_review", False)):
+                        summary["unsupported"] += 1
+                        items.append(
+                            self._result_item(
+                                action="inspect",
+                                status="unsupported",
+                                source_workflow_id=source_id,
+                                source_workflow_name=source_name,
+                                target_app_id=mapping["app_id"] if mapping else None,
+                                conversion_id=conversion_id,
+                                message=(
+                                    (conversion.get("report") or {}).get("manual_review_reasons")
+                                    or [
+                                        "Manual review is required before write-to-Dify; automated sync blocks this workflow."
+                                    ]
+                                )[0],
+                            )
+                        )
+                        continue
 
                     target_app_id = mapping["app_id"] if mapping else None
                     if action == "update":
@@ -317,6 +353,38 @@ class SyncEngine:
                     )
                 )
                 summary["failed"] += 1
+                continue
+            if not bool((converted.get("report") or {}).get("supported", True)):
+                summary["unsupported"] += 1
+                items.append(
+                    self._result_item(
+                        action="inspect",
+                        status="unsupported",
+                        source_workflow_id=source_id,
+                        source_workflow_name=source_name,
+                        target_app_id=mapping["app_id"] if mapping else None,
+                        message=(
+                            (converted.get("report") or {}).get("blocking_issues")
+                            or ["Blocked by the strict supported subset."]
+                        )[0],
+                    )
+                )
+                continue
+            if bool((converted.get("report") or {}).get("requires_manual_review", False)):
+                summary["unsupported"] += 1
+                items.append(
+                    self._result_item(
+                        action="inspect",
+                        status="unsupported",
+                        source_workflow_id=source_id,
+                        source_workflow_name=source_name,
+                        target_app_id=mapping["app_id"] if mapping else None,
+                        message=(
+                            (converted.get("report") or {}).get("manual_review_reasons")
+                            or ["Manual review is required before write-to-Dify; automated sync blocks this workflow."]
+                        )[0],
+                    )
+                )
                 continue
 
             source_snapshots[source_id] = self._normalized_dsl_payload(converted["dsl"])
@@ -755,12 +823,13 @@ class SyncEngine:
 
         canvas = self.conversion_service._extract_canvas(payload)
         ir_workflow = self.conversion_service.engine.coze_parser.parse_dict(canvas)
-        dify_dsl, _report = self.conversion_service.engine.convert_from_ir(ir_workflow)
+        dify_dsl, report = self.conversion_service.engine.convert_from_ir(ir_workflow)
         source_workflow_name = ""
         if isinstance(payload, dict):
             source_workflow_name = str(payload.get("name") or "")
         return {
-            "dsl": dify_dsl.model_dump(mode="json"),
+            "dsl": dify_dsl.model_dump(mode="json") if dify_dsl else {},
+            "report": report.model_dump(mode="json"),
             "source_workflow_name": source_workflow_name or ir_workflow.name or workflow_id,
         }
 

@@ -112,6 +112,21 @@ class EmptyCozeReader:
         return None
 
 
+class ManualReviewPreviewCozeReader:
+    def __init__(self, db_url: str) -> None:
+        self.db_url = db_url
+
+    def list_workflows(self) -> list[dict[str, str]]:
+        return [{"id": "wf-review", "name": "Manual Review Flow"}]
+
+    def read_workflow(self, workflow_id: str) -> dict[str, object] | None:
+        return {
+            "id": workflow_id,
+            "name": "Manual Review Flow",
+            "canvas": _manual_review_canvas(workflow_id),
+        }
+
+
 class DeletePreviewDifyReader:
     def __init__(self, db_url: str) -> None:
         self.db_url = db_url
@@ -190,6 +205,27 @@ class FakeConversionService:
         }
 
 
+class ManualReviewConversionService(FakeConversionService):
+    def convert_from_db(self, db, *, db_url: str, workflow_id: str) -> dict[str, object]:
+        result = super().convert_from_db(db, db_url=db_url, workflow_id=workflow_id)
+        task = db.get(MigrationTask, int(result["conversion_id"]))
+        assert task is not None
+        task.report = {
+            "workflow_name": workflow_id,
+            "total_nodes": 3,
+            "supported": True,
+            "requires_manual_review": True,
+            "manual_review_reasons": [
+                "Python code nodes are admitted only with mandatory manual review before write-to-Dify."
+            ],
+        }
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        result["report"] = task.report
+        return result
+
+
 def _minimal_canvas(node_id: str) -> dict[str, object]:
     start_id = f"{node_id}-start"
     end_id = f"{node_id}-end"
@@ -209,6 +245,82 @@ def _minimal_canvas(node_id: str) -> dict[str, object]:
             },
         ],
         "edges": [{"sourceNodeID": start_id, "targetNodeID": end_id}],
+        "versions": {},
+    }
+
+
+def _manual_review_canvas(node_id: str) -> dict[str, object]:
+    start_id = f"{node_id}-start"
+    code_id = f"{node_id}-code"
+    answer_id = f"{node_id}-answer"
+    return {
+        "nodes": [
+            {
+                "id": start_id,
+                "type": "1",
+                "meta": {"position": {"x": 0, "y": 0}},
+                "data": {"outputs": [{"type": "string", "name": "input", "required": True}]},
+            },
+            {
+                "id": code_id,
+                "type": "5",
+                "meta": {"position": {"x": 320, "y": 0}},
+                "data": {
+                    "inputs": {
+                        "language": 1,
+                        "code": "def main(value):\n    return {'result': value.upper()}\n",
+                        "inputParameters": [
+                            {
+                                "name": "value",
+                                "input": {
+                                    "type": "string",
+                                    "value": {
+                                        "type": "ref",
+                                        "content": {
+                                            "blockID": start_id,
+                                            "name": "input",
+                                            "path": [],
+                                            "source": "block-output",
+                                        },
+                                    },
+                                },
+                            }
+                        ],
+                        "outputParameters": [{"name": "result", "input": {"type": "string"}}],
+                    }
+                },
+            },
+            {
+                "id": answer_id,
+                "type": "13",
+                "meta": {"position": {"x": 640, "y": 0}},
+                "data": {
+                    "inputs": {
+                        "inputParameters": [
+                            {
+                                "name": "answer",
+                                "input": {
+                                    "type": "string",
+                                    "value": {
+                                        "type": "ref",
+                                        "content": {
+                                            "blockID": code_id,
+                                            "name": "result",
+                                            "path": [],
+                                            "source": "block-output",
+                                        },
+                                    },
+                                },
+                            }
+                        ]
+                    }
+                },
+            },
+        ],
+        "edges": [
+            {"sourceNodeID": start_id, "targetNodeID": code_id},
+            {"sourceNodeID": code_id, "targetNodeID": answer_id},
+        ],
         "versions": {},
     }
 
@@ -427,6 +539,85 @@ def test_preview_diff_records_delete_intent_under_selected_policy(tmp_path) -> N
     assert result["items"][0]["status"] == "unsupported"
     assert result["items"][0]["delete_policy"]["mode"] == "approval_required"
     assert result["items"][0]["delete_policy"]["intent_status"] == "approval_pending"
+
+
+def test_execute_sync_blocks_manual_review_workflows_from_automated_write(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-manual-review.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    conversion_service = ManualReviewConversionService()
+    sync_engine = SyncEngine(
+        conversion_service,
+        coze_reader_factory=lambda db_url: ManualReviewPreviewCozeReader(db_url),
+        dify_reader_factory=FakeDifyReader,
+    )
+
+    with session_factory() as db:
+        config = SyncConfig(
+            name="Manual Review Sync",
+            coze_db_url="postgresql://coze.test/app",
+            dify_db_url="postgresql://dify.test/app",
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+
+        result = sync_engine.execute_sync(db, config)
+
+    assert result["status"] == "partial"
+    assert result["summary"] == {
+        "created": 0,
+        "updated": 0,
+        "failed": 0,
+        "skipped": 0,
+        "unsupported": 1,
+        "conflicts": 0,
+    }
+    assert result["items"][0]["status"] == "unsupported"
+    assert "manual review" in result["items"][0]["message"].lower()
+    assert conversion_service.write_calls == []
+
+
+def test_preview_diff_marks_manual_review_workflows_as_unsupported(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-preview-manual-review.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    sync_engine = SyncEngine(
+        ConversionService(),
+        coze_reader_factory=ManualReviewPreviewCozeReader,
+        dify_reader_factory=FakeDifyReader,
+    )
+
+    with session_factory() as db:
+        config = SyncConfig(
+            name="Preview Manual Review",
+            coze_db_url="postgresql://coze.test/app",
+            dify_db_url="postgresql://dify.test/app",
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+
+        result = sync_engine.preview_diff(db, config)
+
+    assert result["status"] == "partial"
+    assert result["summary"] == {
+        "created": 0,
+        "updated": 0,
+        "failed": 0,
+        "skipped": 0,
+        "unsupported": 1,
+        "conflicts": 0,
+    }
+    assert result["items"][0]["source_workflow_id"] == "wf-review"
+    assert result["items"][0]["status"] == "unsupported"
+    assert "manual review" in result["items"][0]["message"].lower()
 
 
 def test_resolve_conflict_source_wins_updates_history_and_persists_resolution(tmp_path) -> None:

@@ -1,0 +1,71 @@
+version: 0.6.0
+kind: app
+app:
+  mode: workflow
+  name: Migrated Workflow
+  description: Migrated from Coze
+  icon: 🤖
+  icon_background: '#FFEAD5'
+dependencies: []
+workflow:
+  graph:
+    nodes:
+    - id: start
+      data:
+        type: start
+        title: Entry
+        desc: ''
+        selected: false
+        variables:
+        - type: text-input
+          label: input
+          variable: input
+          required: true
+      position:
+        x: 0.0
+        y: 0.0
+      width: 244
+      height: 90
+      type: custom
+      sourcePosition: right
+      targetPosition: left
+    - id: answer
+      data:
+        type: answer
+        title: OutputEmitter
+        desc: ''
+        selected: false
+        variables:
+        - variable: answer
+          value_selector:
+          - start
+          - input
+        answer: '{{#start.input#}}'
+      position:
+        x: 320.0
+        y: 0.0
+      width: 244
+      height: 90
+      type: custom
+      sourcePosition: right
+      targetPosition: left
+    edges:
+    - id: start-source-answer-target
+      source: start
+      target: answer
+      sourceHandle: source
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: start
+        targetType: answer
+        isInIteration: false
+        isInLoop: false
+      zIndex: 0
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.7
+  features: {}
+  conversation_variables: []
+  environment_variables: []
