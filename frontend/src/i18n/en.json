@@ -1,0 +1,220 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "migrate": "Migrate",
+    "sync": "Sync",
+    "history": "History",
+    "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Migration Overview",
+    "subtitle": "At-a-glance health of your Coze to Dify migration pipeline",
+    "health": {
+      "backend": "Backend",
+      "coze": "Coze Source",
+      "dify": "Dify Target",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "checking": "Checking..."
+    },
+    "quickActions": {
+      "newMigration": "New Migration",
+      "newMigrationDesc": "Import a Coze workflow and convert to Dify DSL",
+      "runSync": "Run Sync",
+      "runSyncDesc": "Synchronize workflows between Coze and Dify databases",
+      "browseWorkflows": "Browse Workflows",
+      "browseWorkflowsDesc": "Explore workflows on connected platforms"
+    },
+    "stats": {
+      "totalConversions": "Total Conversions",
+      "successRate": "Success Rate",
+      "writtenToDify": "Written to Dify",
+      "pendingReview": "Pending Review"
+    },
+    "recentActivity": "Recent Activity",
+    "recentActivityEmpty": "No migration activity yet. Start your first migration!",
+    "nodeTypeCoverage": "Node Type Coverage",
+    "nodeTypeCoverageDesc": "Mapping success rate by Coze node type across all conversions",
+    "nodeTypeCoverageEmpty": "No conversion data available yet",
+    "activeSchedule": "Active Sync Schedule",
+    "noActiveSchedule": "No active sync schedule configured",
+    "nextRun": "Next Run"
+  },
+  "migrate": {
+    "title": "Import Coze Workflow",
+    "subtitle": "Choose a data source to begin the migration pipeline",
+    "tabs": {
+      "file": "File Upload",
+      "fileDesc": "Upload JSON or YAML",
+      "api": "Coze API",
+      "apiDesc": "Fetch via access token",
+      "database": "Database",
+      "databaseDesc": "Connect directly"
+    },
+    "processing": "Processing workflow...",
+    "validating": "Validating file...",
+    "validationSuccess": "Valid Coze workflow",
+    "validationFailed": "Validation failed"
+  },
+  "diff": {
+    "title": "Conversion Preview",
+    "subtitle": "Review the mapping results before exporting",
+    "summaryHeader": "Conversion Summary",
+    "sideBySide": "Source / Target Comparison",
+    "sideBySideDesc": "Side-by-side view of Coze source nodes and their Dify target equivalents",
+    "visualDiff": "Visual Diff",
+    "visualDiffDesc": "Grouped by mapping outcome with persisted source and target graph summaries",
+    "nodeDetails": "Node Details",
+    "continueToExport": "Continue to Export",
+    "downloadReport": "Download Report",
+    "startOver": "Start Over",
+    "noData": "No data. Upload a workflow first.",
+    "cozeSource": "Coze Source",
+    "difyTarget": "Dify Target",
+    "nodeDrawer": {
+      "title": "Node Detail",
+      "sourceNode": "Source Node",
+      "targetNode": "Target Node",
+      "mappingStatus": "Mapping Status",
+      "verification": "Verification",
+      "typeMatched": "Type matched",
+      "nodeEmitted": "Target node emitted",
+      "noWarnings": "No warnings",
+      "noErrors": "No errors",
+      "warnings": "Warnings",
+      "errors": "Errors"
+    }
+  },
+  "result": {
+    "title": "Export Result",
+    "subtitle": "Conversion complete",
+    "exportOptions": "Export Options",
+    "exportOptionsDesc": "Download as YAML file or write directly to Dify database",
+    "download": "Download DSL",
+    "writeToDify": "Write to Dify",
+    "validateOutput": "Validate Output",
+    "validateSuccess": "Output DSL is valid",
+    "validateFailed": "Output validation failed",
+    "exportReport": "Export Report"
+  },
+  "sync": {
+    "title": "Sync Control",
+    "subtitle": "Manage manual runs, cron schedules, and conflict resolution",
+    "overview": {
+      "title": "Sync Overview",
+      "subtitle": "Current sync status and quick actions",
+      "status": "Sync Status",
+      "lastRun": "Last Run",
+      "editConfig": "Edit Config",
+      "previewDiff": "Preview Diff",
+      "runManualSync": "Run Manual Sync"
+    },
+    "config": {
+      "title": "Sync Configuration",
+      "subtitle": "Configure source/target databases, test connections, and manage schedules",
+      "configName": "Config Name",
+      "cozeSource": "Coze Source",
+      "difyTarget": "Dify Target",
+      "cronExpression": "Cron Expression",
+      "cronHelp": "Use standard cron format in UTC. Example: 0 3 * * *",
+      "saveManual": "Save Manual Config",
+      "testConnections": "Test Connections",
+      "previewDiff": "Preview Diff",
+      "runSync": "Run Manual Sync",
+      "saveSchedule": "Save Schedule",
+      "cancelSchedule": "Cancel Schedule",
+      "scheduleActive": "Schedule Active",
+      "noSchedule": "No active schedule registered",
+      "storedSource": "Stored source",
+      "storedTarget": "Stored target",
+      "replaceOnSave": "new value will replace it on save",
+      "reuseStored": "leave blank to reuse it"
+    },
+    "status": {
+      "idle": "Idle",
+      "running": "Running",
+      "completed": "Completed",
+      "partial": "Partial",
+      "failed": "Failed"
+    },
+    "history": {
+      "title": "Sync History",
+      "subtitle": "Past sync runs with summary stats",
+      "runDetails": "Run Details",
+      "noRuns": "No sync runs recorded yet",
+      "selectRun": "Select a run to view details"
+    },
+    "diffPreview": {
+      "title": "Diff Preview",
+      "subtitle": "Preview create, update, skip, and conflict results before running",
+      "noPreview": "No diff preview loaded yet"
+    },
+    "summary": {
+      "created": "Created",
+      "updated": "Updated",
+      "skipped": "Skipped",
+      "unsupported": "Unsupported",
+      "conflicts": "Conflicts",
+      "failed": "Failed"
+    },
+    "conflict": {
+      "sourceWins": "Apply Source",
+      "targetWins": "Keep Target",
+      "manual": "Manual Review"
+    }
+  },
+  "history": {
+    "title": "Migration History",
+    "subtitle": "All conversion and sync activity",
+    "tabs": {
+      "conversions": "Conversions",
+      "syncRuns": "Sync Runs"
+    },
+    "totalConversions": "Total Conversions",
+    "totalSyncRuns": "Total Sync Runs",
+    "lastActivity": "Last Activity"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Platform connections, dev mode, and preferences",
+    "platformConnections": "Platform Connections",
+    "platformConnectionsDesc": "Configure access to Coze and Dify platforms",
+    "cozeApi": "Coze API",
+    "difyApi": "Dify API",
+    "devMode": "Dev Mode",
+    "devModeDesc": "Local deployment detection and one-click connections",
+    "about": "About",
+    "version": "Version",
+    "language": "Language",
+    "english": "English",
+    "chinese": "Chinese"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "confirm": "Confirm",
+    "search": "Search...",
+    "noResults": "No results found",
+    "total": "Total",
+    "mapped": "Mapped",
+    "partial": "Partial",
+    "unmappable": "Unmappable",
+    "skipped": "Skipped",
+    "nodes": "Nodes",
+    "edges": "Edges",
+    "nested": "Nested",
+    "saving": "Saving...",
+    "testing": "Testing...",
+    "running": "Running...",
+    "previewing": "Previewing...",
+    "pending": "Pending"
+  }
+}

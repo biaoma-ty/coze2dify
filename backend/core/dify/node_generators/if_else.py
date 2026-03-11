@@ -23,6 +23,8 @@ _OPERATOR_MAP = {
     IRConditionOperator.END_WITH: "end with",
     IRConditionOperator.IN: "in",
     IRConditionOperator.NOT_IN: "not in",
+    IRConditionOperator.LENGTH_GREATER_THAN: ">",
+    IRConditionOperator.LENGTH_LESS_THAN: "<",
 }
 
 _VAR_TYPE_MAP = {

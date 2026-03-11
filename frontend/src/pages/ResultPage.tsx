@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import StepNavigation from "../components/layout/StepNavigation";
+import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { AlertTriangle, Rocket, Loader2 } from "lucide-react";
+import PageShell from "../components/common/PageShell";
+import EmptyState from "../components/common/EmptyState";
+import Skeleton from "../components/common/Skeleton";
 import ConversionReportView from "../components/result/ConversionReport";
 import DownloadButton from "../components/result/DownloadButton";
 import DirectWriteButton from "../components/result/DirectWriteButton";
@@ -10,6 +14,8 @@ import { getConversion } from "../api/conversion";
 
 export default function ResultPage() {
   const { conversionId } = useParams();
+  const navigate = useNavigate();
+  const { t } = useTranslation();
   const {
     conversionId: storedConversionId,
     conversionDetail,
@@ -53,62 +59,51 @@ export default function ResultPage() {
     };
   }, [activeDetail, conversionId, setConversion]);
 
+  const breadcrumb = [
+    { label: t("nav.dashboard"), to: "/" },
+    { label: t("nav.migrate"), to: "/migrate" },
+    { label: t("result.title") },
+  ];
+
   if (loading && !activeReport) {
     return (
-      <div className="fade-in">
-        <StepNavigation currentStep={3} />
-        <div className="empty-state">
-          <div className="empty-state__icon">⏳</div>
-          <p className="empty-state__text">Loading export result...</p>
-        </div>
-      </div>
+      <PageShell breadcrumb={breadcrumb} title={t("result.title")}>
+        <Skeleton variant="card" />
+      </PageShell>
     );
   }
 
   if ((!activeReport || !conversionId) && error) {
     return (
-      <div className="fade-in">
-        <StepNavigation currentStep={3} />
-        <div className="empty-state">
-          <div className="empty-state__icon">⚠️</div>
-          <p className="empty-state__text">{error}</p>
-        </div>
-      </div>
+      <PageShell breadcrumb={breadcrumb} title={t("result.title")}>
+        <EmptyState icon={AlertTriangle} text={error} />
+      </PageShell>
     );
   }
 
   if (!activeReport || !conversionId) {
     return (
-      <div className="fade-in">
-        <StepNavigation currentStep={3} />
-        <div className="empty-state">
-          <div className="empty-state__icon">🚀</div>
-          <p className="empty-state__text">No conversion data available.</p>
-        </div>
-      </div>
+      <PageShell breadcrumb={breadcrumb} title={t("result.title")}>
+        <EmptyState icon={Rocket} text={t("diff.noData")} />
+      </PageShell>
     );
   }
 
   return (
-    <div className="fade-in">
-      <StepNavigation currentStep={3} />
-
-      <div className="page-header">
-        <h1 className="page-title">Export Result</h1>
-        <p className="page-description">
-          Workflow "{activeReport.workflow_name}" — conversion complete
-        </p>
-      </div>
-
+    <PageShell
+      breadcrumb={breadcrumb}
+      title={t("result.title")}
+      subtitle={`${activeReport.workflow_name} — ${t("result.subtitle")}`}
+    >
       <ConversionReportView report={activeReport} />
 
       {error && (
         <div className="alert alert--error" style={{ marginTop: 20 }}>
-          <strong>Error:</strong> {error}
+          <strong>{t("common.error")}:</strong> {error}
         </div>
       )}
 
-      {/* Actions */}
+      {/* Export Actions */}
       <div
         className="card card--elevated"
         style={{
@@ -120,9 +115,9 @@ export default function ResultPage() {
         }}
       >
         <div>
-          <div className="section-title">Export Options</div>
+          <div className="section-title">{t("result.exportOptions")}</div>
           <p style={{ fontSize: "0.82rem", color: "var(--c-text-tertiary)", marginTop: 4 }}>
-            Download as YAML file or write directly to Dify database
+            {t("result.exportOptionsDesc")}
           </p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -132,6 +127,6 @@ export default function ResultPage() {
       </div>
 
       <WarningList results={activeReport.node_results} />
-    </div>
+    </PageShell>
   );
 }

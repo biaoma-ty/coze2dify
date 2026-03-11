@@ -1,0 +1,220 @@
+{
+  "nav": {
+    "dashboard": "仪表盘",
+    "migrate": "迁移",
+    "sync": "同步",
+    "history": "历史",
+    "settings": "设置"
+  },
+  "dashboard": {
+    "title": "迁移概览",
+    "subtitle": "Coze 到 Dify 迁移管线的整体健康状态",
+    "health": {
+      "backend": "后端服务",
+      "coze": "Coze 源",
+      "dify": "Dify 目标",
+      "connected": "已连接",
+      "disconnected": "未连接",
+      "checking": "检测中..."
+    },
+    "quickActions": {
+      "newMigration": "新建迁移",
+      "newMigrationDesc": "导入 Coze 工作流并转换为 Dify DSL",
+      "runSync": "运行同步",
+      "runSyncDesc": "在 Coze 和 Dify 数据库之间同步工作流",
+      "browseWorkflows": "浏览工作流",
+      "browseWorkflowsDesc": "查看已连接平台上的工作流"
+    },
+    "stats": {
+      "totalConversions": "总转换数",
+      "successRate": "成功率",
+      "writtenToDify": "已写入 Dify",
+      "pendingReview": "待审查"
+    },
+    "recentActivity": "最近活动",
+    "recentActivityEmpty": "暂无迁移活动，开始您的第一次迁移吧！",
+    "nodeTypeCoverage": "节点类型覆盖率",
+    "nodeTypeCoverageDesc": "所有转换中各 Coze 节点类型的映射成功率",
+    "nodeTypeCoverageEmpty": "暂无转换数据",
+    "activeSchedule": "活跃的同步计划",
+    "noActiveSchedule": "未配置活跃的同步计划",
+    "nextRun": "下次运行"
+  },
+  "migrate": {
+    "title": "导入 Coze 工作流",
+    "subtitle": "选择数据源以开始迁移流程",
+    "tabs": {
+      "file": "文件上传",
+      "fileDesc": "上传 JSON 或 YAML",
+      "api": "Coze API",
+      "apiDesc": "通过访问令牌获取",
+      "database": "数据库",
+      "databaseDesc": "直接连接"
+    },
+    "processing": "正在处理工作流...",
+    "validating": "正在验证文件...",
+    "validationSuccess": "有效的 Coze 工作流",
+    "validationFailed": "验证失败"
+  },
+  "diff": {
+    "title": "转换预览",
+    "subtitle": "导出前查看映射结果",
+    "summaryHeader": "转换概要",
+    "sideBySide": "源端 / 目标端对比",
+    "sideBySideDesc": "Coze 源节点与 Dify 目标节点的并排对比视图",
+    "visualDiff": "可视化差异",
+    "visualDiffDesc": "按映射结果分组，包含持久化的源端和目标端图摘要",
+    "nodeDetails": "节点详情",
+    "continueToExport": "继续导出",
+    "downloadReport": "下载报告",
+    "startOver": "重新开始",
+    "noData": "暂无数据，请先上传工作流。",
+    "cozeSource": "Coze 源端",
+    "difyTarget": "Dify 目标端",
+    "nodeDrawer": {
+      "title": "节点详情",
+      "sourceNode": "源节点",
+      "targetNode": "目标节点",
+      "mappingStatus": "映射状态",
+      "verification": "验证",
+      "typeMatched": "类型已匹配",
+      "nodeEmitted": "已生成目标节点",
+      "noWarnings": "无警告",
+      "noErrors": "无错误",
+      "warnings": "警告",
+      "errors": "错误"
+    }
+  },
+  "result": {
+    "title": "导出结果",
+    "subtitle": "转换完成",
+    "exportOptions": "导出选项",
+    "exportOptionsDesc": "下载为 YAML 文件或直接写入 Dify 数据库",
+    "download": "下载 DSL",
+    "writeToDify": "写入 Dify",
+    "validateOutput": "验证输出",
+    "validateSuccess": "输出 DSL 有效",
+    "validateFailed": "输出验证失败",
+    "exportReport": "导出报告"
+  },
+  "sync": {
+    "title": "同步控制",
+    "subtitle": "管理手动运行、定时计划和冲突解决",
+    "overview": {
+      "title": "同步概览",
+      "subtitle": "当前同步状态和快捷操作",
+      "status": "同步状态",
+      "lastRun": "上次运行",
+      "editConfig": "编辑配置",
+      "previewDiff": "预览差异",
+      "runManualSync": "运行手动同步"
+    },
+    "config": {
+      "title": "同步配置",
+      "subtitle": "配置源/目标数据库、测试连接和管理计划",
+      "configName": "配置名称",
+      "cozeSource": "Coze 源",
+      "difyTarget": "Dify 目标",
+      "cronExpression": "Cron 表达式",
+      "cronHelp": "使用标准 cron 格式（UTC 时区）。例如：0 3 * * *",
+      "saveManual": "保存手动配置",
+      "testConnections": "测试连接",
+      "previewDiff": "预览差异",
+      "runSync": "运行手动同步",
+      "saveSchedule": "保存计划",
+      "cancelSchedule": "取消计划",
+      "scheduleActive": "计划已激活",
+      "noSchedule": "未注册活跃的计划",
+      "storedSource": "已存储的源",
+      "storedTarget": "已存储的目标",
+      "replaceOnSave": "保存时将替换新值",
+      "reuseStored": "留空以复用已存储的值"
+    },
+    "status": {
+      "idle": "空闲",
+      "running": "运行中",
+      "completed": "已完成",
+      "partial": "部分完成",
+      "failed": "失败"
+    },
+    "history": {
+      "title": "同步历史",
+      "subtitle": "历次同步运行及摘要统计",
+      "runDetails": "运行详情",
+      "noRuns": "暂无同步运行记录",
+      "selectRun": "选择一次运行以查看详情"
+    },
+    "diffPreview": {
+      "title": "差异预览",
+      "subtitle": "运行前预览创建、更新、跳过和冲突结果",
+      "noPreview": "暂未加载差异预览"
+    },
+    "summary": {
+      "created": "已创建",
+      "updated": "已更新",
+      "skipped": "已跳过",
+      "unsupported": "不支持",
+      "conflicts": "冲突",
+      "failed": "失败"
+    },
+    "conflict": {
+      "sourceWins": "应用源端",
+      "targetWins": "保留目标",
+      "manual": "手动审查"
+    }
+  },
+  "history": {
+    "title": "迁移历史",
+    "subtitle": "所有转换和同步活动",
+    "tabs": {
+      "conversions": "转换记录",
+      "syncRuns": "同步记录"
+    },
+    "totalConversions": "总转换数",
+    "totalSyncRuns": "总同步数",
+    "lastActivity": "最近活动"
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "平台连接、开发模式和偏好设置",
+    "platformConnections": "平台连接",
+    "platformConnectionsDesc": "配置 Coze 和 Dify 平台的访问方式",
+    "cozeApi": "Coze API",
+    "difyApi": "Dify API",
+    "devMode": "开发模式",
+    "devModeDesc": "本地部署检测和一键连接",
+    "about": "关于",
+    "version": "版本",
+    "language": "语言",
+    "english": "English",
+    "chinese": "中文"
+  },
+  "common": {
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "close": "关闭",
+    "back": "返回",
+    "next": "下一步",
+    "confirm": "确认",
+    "search": "搜索...",
+    "noResults": "未找到结果",
+    "total": "总计",
+    "mapped": "已映射",
+    "partial": "部分映射",
+    "unmappable": "无法映射",
+    "skipped": "已跳过",
+    "nodes": "节点",
+    "edges": "边",
+    "nested": "嵌套",
+    "saving": "保存中...",
+    "testing": "测试中...",
+    "running": "运行中...",
+    "previewing": "预览中...",
+    "pending": "待处理"
+  }
+}
