@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -9,6 +9,8 @@ class CorpusCase:
     name: str
     canvas: dict[str, Any]
     expected_supported: bool
+    semantic_inputs: dict[str, Any] = field(default_factory=dict)
+    expected_terminal: dict[str, Any] | None = None
 
 
 def _start_node(*, name: str = "input", var_type: str = "string") -> dict[str, Any]:
@@ -109,6 +111,8 @@ def _output_emitter_case(name: str, *, literal: str | None = None) -> CorpusCase
             "versions": {},
         },
         expected_supported=True,
+        semantic_inputs={"input": "hello world"},
+        expected_terminal={"answer": literal or "hello world"},
     )
 
 
@@ -179,6 +183,8 @@ def _baseline_case() -> CorpusCase:
             "versions": {},
         },
         expected_supported=True,
+        semantic_inputs={"input": "hello world"},
+        expected_terminal={},
     )
 
 
@@ -200,6 +206,8 @@ def _comment_case() -> CorpusCase:
             "versions": {},
         },
         expected_supported=True,
+        semantic_inputs={"input": "hello world"},
+        expected_terminal={},
     )
 
 
