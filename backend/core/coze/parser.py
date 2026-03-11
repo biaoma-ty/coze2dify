@@ -208,19 +208,6 @@ class CozeParser:
             return inputs, outputs, config
 
         coze_inputs = node.data.get("inputs", {})
-        start_outputs = node.data.get("outputs", [])
-
-        if node.type == "1":
-            for output_data in start_outputs:
-                inputs.append(
-                    IRVariable(
-                        name=output_data.get("name", ""),
-                        var_type=_VAR_TYPE_MAP.get(output_data.get("type", "string"), IRVariableType.ANY),
-                        required=bool(output_data.get("required", False)),
-                        description=str(output_data.get("description") or ""),
-                        default_value=output_data.get("default"),
-                    )
-                )
 
         for param_data in coze_inputs.get("inputParameters", []):
             name = param_data.get("name", "")

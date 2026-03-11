@@ -90,18 +90,11 @@ class NodeConversionResult(BaseModel):
     target_node_id: str | None = None
     target_node_type: str | None = None
     status: MappingStatus
-    support_state: Literal["supported", "blocked", "manual_review"] = "supported"
-    support_reasons: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
 
 
 class ConversionReport(BaseModel):
-    support_mode: Literal["strict_supported_subset"] = "strict_supported_subset"
-    supported: bool = True
-    requires_manual_review: bool = False
-    blocking_issues: list[str] = Field(default_factory=list)
-    manual_review_reasons: list[str] = Field(default_factory=list)
     workflow_name: str = ""
     total_nodes: int = 0
     mapped_count: int = 0

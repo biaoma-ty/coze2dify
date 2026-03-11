@@ -132,19 +132,9 @@ Execute conversion pipeline.
 Get conversion result, including the persisted report plus `source_graph` / `target_graph` summaries
 for visual diff views.
 
-The report now includes:
-
-- `support_mode`
-- `supported`
-- `requires_manual_review`
-- `blocking_issues`
-- `manual_review_reasons`
-
 ### `GET /convert/{id}/dsl`
 
 Download generated Dify DSL YAML file.
-
-Blocked conversions do not store a DSL artifact, so this endpoint only succeeds when `report.supported = true`.
 
 ### `GET /convert/{id}/report`
 
@@ -154,19 +144,8 @@ Get detailed conversion report (mapping stats, warnings, unmappable nodes).
 
 Direct-write conversion result to Dify PostgreSQL.
 
-**Request:**
-```json
-{
-  "db_url": "postgresql://user:pass@host:5432/dify",
-  "app_id": "optional-existing-app-id",
-  "confirm_reviewed": false
-}
-```
-
 Safety behavior:
 
-- blocked conversions are rejected before any write is attempted
-- conversions marked `requires_manual_review = true` are rejected unless `confirm_reviewed = true`
 - raw target DB URLs are not echoed back in API-visible payloads
 - successful and failed writes persist redacted target references plus last-write audit metadata
 - write failures return actionable, sanitized error details

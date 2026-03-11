@@ -1,43 +1,21 @@
 import { useState } from "react";
 import { writeToDify } from "../../api/conversion";
 import { usePlatformStore } from "../../store/platformStore";
-import type { ConversionReport, WriteResult } from "../../types/ir";
+import type { WriteResult } from "../../types/ir";
 
-export default function DirectWriteButton({
-  conversionId,
-  report,
-}: {
-  conversionId: string;
-  report: ConversionReport;
-}) {
+export default function DirectWriteButton({ conversionId }: { conversionId: string }) {
   const { difyDbUrl, difyApiBase, difySelectedAppId } = usePlatformStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<WriteResult | null>(null);
-  const [reviewConfirmed, setReviewConfirmed] = useState(false);
-  const blockedReason =
-    report.blocking_issues[0] || "This workflow is outside the strict supported subset.";
-  const manualReviewReason =
-    report.manual_review_reasons[0] || "Manual review is required before write-to-Dify.";
-  const isBlocked = !report.supported;
-  const requiresManualReview = report.requires_manual_review;
 
   const handleWrite = async () => {
-    if (isBlocked) {
-      setError(blockedReason);
-      return;
-    }
-    if (requiresManualReview && !reviewConfirmed) {
-      setError(manualReviewReason);
-      return;
-    }
     setLoading(true);
     setError("");
     try {
       const response = await writeToDify(conversionId, {
         db_url: difyDbUrl || undefined,
         app_id: difySelectedAppId || undefined,
-        confirm_reviewed: requiresManualReview ? reviewConfirmed : undefined,
       });
       setResult(response.write_result);
     } catch (e: any) {
@@ -52,40 +30,9 @@ export default function DirectWriteButton({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
-      {requiresManualReview && (
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: "0.76rem",
-            color: "var(--c-text-secondary)",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={reviewConfirmed}
-            onChange={(event) => {
-              setReviewConfirmed(event.target.checked);
-              setError("");
-            }}
-          />
-          I reviewed the migrated workflow and approve the direct write.
-        </label>
-      )}
-      <button
-        className="btn btn-secondary"
-        onClick={handleWrite}
-        disabled={loading || isBlocked || (requiresManualReview && !reviewConfirmed)}
-      >
+      <button className="btn btn-secondary" onClick={handleWrite} disabled={loading}>
         {loading ? "Writing..." : difySelectedAppId ? "🗄 Update Dify App" : "🗄 Write to Dify DB"}
       </button>
-      {!error && isBlocked && (
-        <span style={{ fontSize: "0.72rem", color: "var(--c-red)" }}>{blockedReason}</span>
-      )}
-      {!error && !isBlocked && requiresManualReview && (
-        <span style={{ fontSize: "0.72rem", color: "var(--c-amber)" }}>{manualReviewReason}</span>
-      )}
       {result && (
         <div style={{ display: "grid", gap: 2 }}>
           <span style={{ fontSize: "0.72rem", color: result.status === "failed" ? "var(--c-red)" : "var(--c-green)" }}>
