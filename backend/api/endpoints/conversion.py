@@ -27,6 +27,7 @@ class DbConversionRequest(BaseModel):
 class WriteToDifyRequest(BaseModel):
     db_url: str | None = None
     app_id: str | None = None
+    confirm_reviewed: bool = False
 
 
 @router.get("")
@@ -131,7 +132,13 @@ async def write_to_dify(
     db: Session = Depends(get_db),
 ):
     try:
-        return service.write_to_dify(db, conversion_id, db_url=req.db_url, app_id=req.app_id)
+        return service.write_to_dify(
+            db,
+            conversion_id,
+            db_url=req.db_url,
+            app_id=req.app_id,
+            confirm_reviewed=req.confirm_reviewed,
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

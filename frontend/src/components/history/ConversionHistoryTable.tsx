@@ -24,7 +24,7 @@ function getStatusTone(status: string): "mapped" | "partial" | "unmappable" | "s
   if (status === "converted" || status === "written" || status === "updated") {
     return "mapped";
   }
-  if (status === "failed" || status === "error" || status === "write_failed") {
+  if (status === "failed" || status === "error" || status === "write_failed" || status === "blocked") {
     return "unmappable";
   }
   if (status === "skipped") {
@@ -130,6 +130,22 @@ export default function ConversionHistoryTable({ items }: { items: ConversionHis
                         }}
                       >
                         {report.errors_count} errors · {report.warnings_count} warnings
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "0.74rem",
+                          color: !report.supported
+                            ? "var(--c-red)"
+                            : report.requires_manual_review
+                              ? "var(--c-amber)"
+                              : "var(--c-text-tertiary)",
+                        }}
+                      >
+                        {!report.supported
+                          ? "Strict subset blocked"
+                          : report.requires_manual_review
+                            ? "Manual review required"
+                            : "Inside strict subset"}
                       </span>
                     </div>
                   ) : (

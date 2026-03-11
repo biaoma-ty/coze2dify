@@ -128,7 +128,10 @@ def test_get_conversion_includes_nested_source_graph_summary(tmp_path, monkeypat
     assert persisted["source_graph"]["edge_count"] == 3
     assert source_nodes["loop"]["parent_id"] is None
     assert source_nodes["child-code"]["parent_id"] == "loop"
-    assert persisted["target_graph"]["node_count"] >= 3
+    assert result["status"] == "blocked"
+    assert result["report"]["supported"] is False
+    assert persisted["target_graph"] is None
+    assert persisted["dsl"] == {}
 
 
 def test_list_conversions_returns_paginated_history_without_sync_tasks(tmp_path) -> None:

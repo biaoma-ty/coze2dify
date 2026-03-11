@@ -1,5 +1,17 @@
 # Node Mapping — Complete 42-Type Reference
 
+> This document describes the full design-time mapping target. Runtime conversion is stricter and currently enforces only the subset documented in [`supported-subset.md`](supported-subset.md).
+
+## Runtime Enforcement
+
+The converter no longer treats every `Partial` or `Mode Change` row below as safe to emit. Under `strict_supported_subset`:
+
+- `Direct` mappings are not automatically admitted unless they are covered by the supported subset policy
+- `Partial`, `Mode Change`, and `Unmappable` rows are blocked at conversion time
+- Python `CodeRunner` is the only high-risk exception and still requires manual review before direct write
+
+See [`supported-subset.md`](supported-subset.md) for the exact operator-facing contract.
+
 ## Mapping Levels
 
 | Icon | Level | Meaning |
