@@ -151,7 +151,10 @@ class SyncEngine:
                                 source_workflow_name=source_name,
                                 target_app_id=mapping["app_id"] if mapping else None,
                                 conversion_id=conversion_id,
-                                message=((conversion.get("report") or {}).get("blocking_issues") or ["Blocked by the strict supported subset."])[0],
+                                message=(
+                                    (conversion.get("report") or {}).get("blocking_issues")
+                                    or ["Blocked by the strict supported subset."]
+                                )[0],
                             )
                         )
                         continue
@@ -165,9 +168,12 @@ class SyncEngine:
                                 source_workflow_name=source_name,
                                 target_app_id=mapping["app_id"] if mapping else None,
                                 conversion_id=conversion_id,
-                                message=((conversion.get("report") or {}).get("manual_review_reasons") or [
-                                    "Manual review is required before write-to-Dify; automated sync blocks this workflow."
-                                ])[0],
+                                message=(
+                                    (conversion.get("report") or {}).get("manual_review_reasons")
+                                    or [
+                                        "Manual review is required before write-to-Dify; automated sync blocks this workflow."
+                                    ]
+                                )[0],
                             )
                         )
                         continue
@@ -357,7 +363,10 @@ class SyncEngine:
                         source_workflow_id=source_id,
                         source_workflow_name=source_name,
                         target_app_id=mapping["app_id"] if mapping else None,
-                        message=((converted.get("report") or {}).get("blocking_issues") or ["Blocked by the strict supported subset."])[0],
+                        message=(
+                            (converted.get("report") or {}).get("blocking_issues")
+                            or ["Blocked by the strict supported subset."]
+                        )[0],
                     )
                 )
                 continue
@@ -370,9 +379,10 @@ class SyncEngine:
                         source_workflow_id=source_id,
                         source_workflow_name=source_name,
                         target_app_id=mapping["app_id"] if mapping else None,
-                        message=((converted.get("report") or {}).get("manual_review_reasons") or [
-                            "Manual review is required before write-to-Dify; automated sync blocks this workflow."
-                        ])[0],
+                        message=(
+                            (converted.get("report") or {}).get("manual_review_reasons")
+                            or ["Manual review is required before write-to-Dify; automated sync blocks this workflow."]
+                        )[0],
                     )
                 )
                 continue

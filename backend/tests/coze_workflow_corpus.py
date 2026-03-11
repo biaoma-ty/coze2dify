@@ -134,10 +134,7 @@ def _python_code_case() -> CorpusCase:
                     "data": {
                         "inputs": {
                             "language": 1,
-                            "code": (
-                                "def main(value):\n"
-                                "    return {'result': value.upper()}\n"
-                            ),
+                            "code": ("def main(value):\n    return {'result': value.upper()}\n"),
                             "inputParameters": [
                                 {
                                     "name": "value",
