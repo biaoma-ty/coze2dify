@@ -27,3 +27,4 @@ Blocked conversions:
 - disable direct write to Dify
 
 This policy is intentionally conservative. The subset should only expand when dedicated coverage is added for the new path.
+The current coverage baseline lives in `backend/tests/coze_workflow_corpus.py` and tracks 42 representative Coze node-class cases.
