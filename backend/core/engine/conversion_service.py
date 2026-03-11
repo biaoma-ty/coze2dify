@@ -130,6 +130,11 @@ class ConversionService:
         target_db_url = db_url or settings.dify_database_url
         if not target_db_url:
             raise ValueError("Dify database URL is required")
+        report = task.report or {}
+        if not bool(report.get("supported", True)):
+            blocking_issues = report.get("blocking_issues") or []
+            detail = blocking_issues[0] if blocking_issues else "This workflow is outside the strict supported subset."
+            raise ValueError(detail)
 
         snapshot = dict(task.ir_snapshot or {})
         dsl_payload = snapshot.get("dify_dsl")
@@ -211,10 +216,9 @@ class ConversionService:
         source_workflow_name: str,
     ) -> dict[str, Any]:
         dify_dsl, report = self.engine.convert_from_ir(ir_workflow)
-        yaml_output = self.engine.dify_generator.to_yaml(dify_dsl)
         snapshot = {
             "ir_workflow": ir_workflow.model_dump(mode="json"),
-            "dify_dsl": dify_dsl.model_dump(mode="json"),
+            "dify_dsl": dify_dsl.model_dump(mode="json") if dify_dsl else None,
             "write_result": None,
             "audit": {
                 "source": {
@@ -225,14 +229,16 @@ class ConversionService:
                 "last_write": None,
             },
         }
+        yaml_output = self.engine.dify_generator.to_yaml(dify_dsl) if dify_dsl else None
         task = MigrationTask(
             source_type=source_type,
             source_workflow_id=source_workflow_id,
             source_workflow_name=source_workflow_name,
-            status="converted",
+            status="converted" if report.supported else "blocked",
             ir_snapshot=snapshot,
             dify_dsl=yaml_output,
             report=report.model_dump(mode="json"),
+            error_message=report.blocking_issues[0] if report.blocking_issues else None,
             completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(task)
@@ -380,6 +386,7 @@ class ConversionService:
         errors = report.get("errors")
         return {
             "workflow_name": report.get("workflow_name") or "",
+            "supported": bool(report.get("supported", False)),
             "total_nodes": int(report.get("total_nodes") or 0),
             "mapped_count": int(report.get("mapped_count") or 0),
             "partial_count": int(report.get("partial_count") or 0),

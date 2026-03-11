@@ -89,6 +89,12 @@ export default function ResultPage() {
     );
   }
 
+  const blockedReason =
+    activeReport.blocking_issues[0] || "This workflow is outside the strict supported subset.";
+  const exportDescription = !activeReport.supported
+    ? "Blocked workflows do not emit Dify DSL. Resolve the listed nodes before exporting."
+    : t("result.exportOptionsDesc");
+
   return (
     <PageShell
       breadcrumb={breadcrumb}
@@ -96,6 +102,16 @@ export default function ResultPage() {
       subtitle={`${activeReport.workflow_name} — ${t("result.subtitle")}`}
     >
       <ConversionReportView report={activeReport} />
+
+      {!activeReport.supported && (
+        <div className="alert alert--error" style={{ marginTop: 24 }}>
+          <strong>Blocked by strict supported subset.</strong>
+          <div style={{ marginTop: 6 }}>{blockedReason}</div>
+          <div style={{ marginTop: 6, fontSize: "0.78rem" }}>
+            No Dify DSL was generated for this conversion, so export actions are disabled.
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="alert alert--error" style={{ marginTop: 20 }}>
@@ -117,12 +133,16 @@ export default function ResultPage() {
         <div>
           <div className="section-title">{t("result.exportOptions")}</div>
           <p style={{ fontSize: "0.82rem", color: "var(--c-text-tertiary)", marginTop: 4 }}>
-            {t("result.exportOptionsDesc")}
+            {exportDescription}
           </p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <DownloadButton conversionId={conversionId} />
-          <DirectWriteButton conversionId={conversionId} />
+          <DownloadButton
+            conversionId={conversionId}
+            disabled={!activeReport.supported}
+            disabledReason={!activeReport.supported ? blockedReason : ""}
+          />
+          <DirectWriteButton conversionId={conversionId} report={activeReport} />
         </div>
       </div>
 

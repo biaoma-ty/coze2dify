@@ -127,6 +127,17 @@ class DeletePreviewDifyReader:
         return {"app_id": app_id, "graph": {"nodes": [], "edges": []}, "features": {}}
 
 
+class EmptyDifyReader:
+    def __init__(self, db_url: str) -> None:
+        self.db_url = db_url
+
+    def list_apps(self) -> list[dict[str, str]]:
+        return []
+
+    def read_workflow(self, app_id: str) -> dict[str, object] | None:
+        return None
+
+
 class FakeConversionService:
     def __init__(self) -> None:
         self.write_calls: list[tuple[str, str | None, str | None]] = []
@@ -145,7 +156,7 @@ class FakeConversionService:
             status="converted",
             ir_snapshot={"dify_dsl": dsl_payload, "write_result": None},
             dify_dsl="workflow: {}\n",
-            report={"workflow_name": workflow_id, "total_nodes": 1},
+            report={"workflow_name": workflow_id, "total_nodes": 1, "supported": True, "blocking_issues": []},
             completed_at=_utcnow(),
         )
         db.add(task)
@@ -190,6 +201,36 @@ class FakeConversionService:
         }
 
 
+class BlockedConversionService(FakeConversionService):
+    def convert_from_db(self, db, *, db_url: str, workflow_id: str) -> dict[str, object]:
+        blocking_issue = "LLM is blocked by the strict supported subset because its mapping is partial."
+        task = MigrationTask(
+            source_type="database",
+            source_workflow_id=workflow_id,
+            source_workflow_name=f"Workflow {workflow_id}",
+            status="blocked",
+            ir_snapshot={"dify_dsl": None, "write_result": None},
+            dify_dsl=None,
+            report={
+                "workflow_name": workflow_id,
+                "total_nodes": 2,
+                "supported": False,
+                "blocking_issues": [blocking_issue],
+            },
+            error_message=blocking_issue,
+            completed_at=_utcnow(),
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        return {
+            "conversion_id": str(task.id),
+            "dsl": {},
+            "report": task.report,
+            "status": task.status,
+        }
+
+
 def _minimal_canvas(node_id: str) -> dict[str, object]:
     start_id = f"{node_id}-start"
     end_id = f"{node_id}-end"
@@ -213,11 +254,49 @@ def _minimal_canvas(node_id: str) -> dict[str, object]:
     }
 
 
+def _blocked_canvas(node_id: str) -> dict[str, object]:
+    start_id = f"{node_id}-start"
+    llm_id = f"{node_id}-llm"
+    return {
+        "nodes": [
+            {
+                "id": start_id,
+                "type": "1",
+                "meta": {"position": {"x": 0, "y": 0}},
+                "data": {"outputs": [{"type": "string", "name": "input", "required": True}]},
+            },
+            {
+                "id": llm_id,
+                "type": "3",
+                "meta": {"position": {"x": 320, "y": 0}},
+                "data": {"inputs": {}},
+            },
+        ],
+        "edges": [{"sourceNodeID": start_id, "targetNodeID": llm_id}],
+        "versions": {},
+    }
+
+
 def _dsl_payload_for(canvas: dict[str, object]) -> dict[str, object]:
     service = ConversionService()
     ir_workflow = service.engine.coze_parser.parse_dict(canvas)
     dsl, _report = service.engine.convert_from_ir(ir_workflow)
     return dsl.model_dump(mode="json")
+
+
+class BlockedPreviewCozeReader:
+    def __init__(self, db_url: str) -> None:
+        self.db_url = db_url
+
+    def list_workflows(self) -> list[dict[str, str]]:
+        return [{"id": "wf-blocked", "name": "Blocked Flow"}]
+
+    def read_workflow(self, workflow_id: str) -> dict[str, object] | None:
+        return {
+            "id": workflow_id,
+            "name": "Blocked Flow",
+            "canvas": _blocked_canvas(workflow_id),
+        }
 
 
 def test_execute_sync_persists_create_and_update_results(tmp_path) -> None:
@@ -427,6 +506,94 @@ def test_preview_diff_records_delete_intent_under_selected_policy(tmp_path) -> N
     assert result["items"][0]["status"] == "unsupported"
     assert result["items"][0]["delete_policy"]["mode"] == "approval_required"
     assert result["items"][0]["delete_policy"]["intent_status"] == "approval_pending"
+
+
+def test_preview_diff_marks_blocked_conversions_as_unsupported(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-blocked-preview.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    sync_engine = SyncEngine(
+        ConversionService(),
+        coze_reader_factory=BlockedPreviewCozeReader,
+        dify_reader_factory=EmptyDifyReader,
+    )
+
+    with session_factory() as db:
+        config = SyncConfig(
+            name="Blocked Preview",
+            coze_db_url="postgresql://coze.test/app",
+            dify_db_url="postgresql://dify.test/app",
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+
+        result = sync_engine.preview_diff(db, config)
+        persisted_tasks = db.execute(select(MigrationTask)).scalars().all()
+
+    assert result["status"] == "partial"
+    assert result["summary"] == {
+        "created": 0,
+        "updated": 0,
+        "failed": 0,
+        "skipped": 0,
+        "unsupported": 1,
+        "conflicts": 0,
+    }
+    assert len(result["items"]) == 1
+    assert result["items"][0]["status"] == "unsupported"
+    assert "strict supported subset" in result["items"][0]["message"]
+    assert persisted_tasks == []
+
+
+def test_execute_sync_skips_write_for_blocked_conversions(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-sync-blocked-execute.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    conversion_service = BlockedConversionService()
+    sync_engine = SyncEngine(
+        conversion_service,
+        coze_reader_factory=BlockedPreviewCozeReader,
+        dify_reader_factory=EmptyDifyReader,
+    )
+
+    with session_factory() as db:
+        config = SyncConfig(
+            name="Blocked Execute",
+            coze_db_url="postgresql://coze.test/app",
+            dify_db_url="postgresql://dify.test/app",
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+
+        result = sync_engine.execute_sync(db, config)
+        synced_tasks = (
+            db.execute(select(MigrationTask).where(MigrationTask.sync_config_id == config.id)).scalars().all()
+        )
+
+    assert result["status"] == "partial"
+    assert result["summary"] == {
+        "created": 0,
+        "updated": 0,
+        "failed": 0,
+        "skipped": 0,
+        "unsupported": 1,
+        "conflicts": 0,
+    }
+    assert len(result["items"]) == 1
+    assert result["items"][0]["status"] == "unsupported"
+    assert result["items"][0]["conversion_id"] == "1"
+    assert conversion_service.write_calls == []
+    assert len(synced_tasks) == 1
+    assert synced_tasks[0].status == "blocked"
 
 
 def test_resolve_conflict_source_wins_updates_history_and_persists_resolution(tmp_path) -> None:

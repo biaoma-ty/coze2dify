@@ -1,6 +1,7 @@
 import type { DatabaseTargetRef } from "./audit";
 
 export type MappingStatus = "mapped" | "partial" | "unmappable" | "skipped";
+export type SupportState = "supported" | "blocked";
 
 export interface NodeConversionResult {
   source_node_id: string;
@@ -8,11 +9,16 @@ export interface NodeConversionResult {
   target_node_id: string | null;
   target_node_type: string | null;
   status: MappingStatus;
+  support_state: SupportState;
+  support_reasons: string[];
   warnings: string[];
   errors: string[];
 }
 
 export interface ConversionReport {
+  support_mode: "strict_supported_subset";
+  supported: boolean;
+  blocking_issues: string[];
   workflow_name: string;
   total_nodes: number;
   mapped_count: number;
@@ -80,6 +86,7 @@ export interface ConversionAudit {
 
 export interface ConversionHistoryReportSummary {
   workflow_name: string;
+  supported: boolean;
   total_nodes: number;
   mapped_count: number;
   partial_count: number;

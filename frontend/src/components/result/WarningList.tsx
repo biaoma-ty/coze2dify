@@ -1,7 +1,9 @@
 import type { NodeConversionResult } from "../../types/ir";
 
 export default function WarningList({ results }: { results: NodeConversionResult[] }) {
-  const warnings = results.filter((r) => r.warnings.length > 0 || r.status === "unmappable");
+  const warnings = results.filter(
+    (r) => r.support_state !== "supported" || r.warnings.length > 0 || r.errors.length > 0,
+  );
   if (warnings.length === 0) return null;
 
   return (
@@ -27,13 +29,16 @@ export default function WarningList({ results }: { results: NodeConversionResult
             <span style={{ opacity: 0.6, marginLeft: 6, fontFamily: "var(--font-mono)", fontSize: "0.7rem" }}>
               {r.source_node_id}
             </span>
-            {r.status === "unmappable" && (
-              <span style={{ color: "var(--c-red)", marginLeft: 8 }}>
-                — No Dify equivalent
-              </span>
+            {r.support_state === "blocked" && (
+              <span style={{ color: "var(--c-red)", marginLeft: 8 }}>— Blocked</span>
             )}
-            {r.warnings.map((w, i) => (
-              <span key={i} style={{ marginLeft: 8 }}>— {w}</span>
+            {[...new Set([...r.support_reasons, ...r.warnings, ...r.errors])].map((message, i) => (
+              <span
+                key={`${r.source_node_id}-${i}`}
+                style={{ marginLeft: 8, color: r.support_state === "blocked" ? "var(--c-red)" : undefined }}
+              >
+                — {message || (r.status === "unmappable" ? "No Dify equivalent" : "Review required")}
+              </span>
             ))}
           </div>
         ))}

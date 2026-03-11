@@ -39,10 +39,10 @@
 |---------|--------|-------------|
 | 🔄 **Workflow Conversion** | ✅ Verified | Coze JSON/YAML → IR → Dify graph / DSL |
 | 📂 **File Import + DSL Export** | ✅ Verified | Upload local workflow file and export generated DSL |
-| 🗺️ **Node Mapping** | 🟡 Partial | Main node types covered, but not every Coze construct is lossless |
+| 🗺️ **Node Mapping** | 🟡 Strict Subset | Runtime only emits DSL for the verified supported subset; partial and unmappable nodes are blocked |
 | 🔀 **Variable Transform** | 🟡 Partial | Common `BlockInputReference` cases work; edge cases still exist |
-| 📋 **Conversion Report** | ✅ Verified | Mapping stats, warnings, unmappable nodes |
-| 🗄️ **Direct Dify DB Write** | 🟡 Experimental | Backend writer works for local migration tests, UI/API flow is not fully wired |
+| 📋 **Conversion Report** | ✅ Verified | Mapping stats plus strict-subset support status and blocking issues |
+| 🗄️ **Direct Dify DB Write** | 🟡 Guarded | Only allowed for conversions inside the strict supported subset |
 | 📊 **Visual Diff** | 🟡 Basic | Current UI shows report + mapping table, not a full graph diff |
 | 🔍 **Platform Browse** | 🚧 In Progress | Connection UI exists, workflow selection flow is not completed |
 | 🛠️ **Dev Mode** | 🟡 Experimental | Local service detection exists, but one-click workflow operations are limited |
@@ -50,12 +50,24 @@
 
 ## 📌 Current Status
 
-- **Verified path**: file-based Coze workflow conversion into Dify graph / DSL.
+- **Verified path**: file-based Coze workflow conversion into Dify graph / DSL for the strict supported subset.
 - **Verified in local testing**: migrated workflow can be written into a local Dify PostgreSQL instance and opened in Dify.
+- **Strict runtime policy**: partial and unmappable nodes are blocked instead of emitting best-effort DSL.
 - **Partially built**: platform browse, dev mode helpers, and direct-write UI.
 - **Not production-ready yet**: incremental sync, migration history persistence, and several API/database import flows.
 
 If you are evaluating the project, treat it as a working migration core with unfinished product surface area.
+
+## ✅ Strict Supported Subset
+
+The current runtime contract is intentionally conservative. Automatic DSL generation is admitted only for:
+
+- Entry (`start`)
+- Exit (`end`)
+- OutputEmitter (`answer`)
+- Comment (`skipped safely`)
+
+Everything else that is still marked as partial, mode-change, or unmappable in the 42-type mapping table is blocked at conversion time. See [`docs/supported-subset.md`](docs/supported-subset.md).
 
 ## 🏗️ Architecture
 
@@ -141,7 +153,7 @@ Some endpoints below exist in the API surface but are not all fully wired in the
 | `POST` | `/api/v1/coze/upload` | Upload Coze workflow file |
 | `POST` | `/api/v1/convert` | Execute conversion |
 | `GET`  | `/api/v1/convert/{id}/dsl` | Download Dify DSL |
-| `POST` | `/api/v1/convert/{id}/write-to-dify` | Write converted DSL directly to Dify PostgreSQL |
+| `POST` | `/api/v1/convert/{id}/write-to-dify` | Write converted DSL directly to Dify PostgreSQL (blocked conversions are rejected) |
 
 ### Sync
 
@@ -177,7 +189,7 @@ Delete gaps are governed by an explicit policy layer; see [`docs/delete-sync-pol
 
 ## 🗺️ Node Mapping (42 types)
 
-The mapping table is the target design. Actual support quality varies by node type, and several mappings are still partial.
+The mapping table is the design target. Runtime enforcement is stricter: only the subset documented in [`docs/supported-subset.md`](docs/supported-subset.md) is currently allowed to emit DSL.
 
 | Coze Node | Dify Node | Level |
 |-----------|-----------|-------|
@@ -200,7 +212,7 @@ The mapping table is the target design. Actual support quality varies by node ty
 | Continue | — | 🔴 Unmappable |
 | Comment | — | ⚪ Skipped |
 
-> See the full 42-type mapping in [`docs/node-mapping.md`](docs/node-mapping.md). Architecture details in [`docs/architecture.md`](docs/architecture.md). API reference in [`docs/api.md`](docs/api.md). Delete policy guide in [`docs/delete-sync-policy.md`](docs/delete-sync-policy.md). Dev Mode guide in [`docs/dev-mode.md`](docs/dev-mode.md).
+> See the full 42-type mapping in [`docs/node-mapping.md`](docs/node-mapping.md). Strict runtime policy is documented in [`docs/supported-subset.md`](docs/supported-subset.md). Architecture details in [`docs/architecture.md`](docs/architecture.md). API reference in [`docs/api.md`](docs/api.md). Delete policy guide in [`docs/delete-sync-policy.md`](docs/delete-sync-policy.md). Dev Mode guide in [`docs/dev-mode.md`](docs/dev-mode.md).
 
 ## 📁 Project Structure
 
@@ -213,6 +225,7 @@ coze2dify/
 ├── docs/                      # Documentation
 │   ├── architecture.md        #   IR pipeline design
 │   ├── node-mapping.md        #   42-type mapping reference
+│   ├── supported-subset.md    #   strict runtime support policy
 │   ├── api.md                 #   REST API reference
 │   └── dev-mode.md            #   Dev mode guide
 │

@@ -1,15 +1,27 @@
 import { useState } from "react";
 import { writeToDify } from "../../api/conversion";
 import { usePlatformStore } from "../../store/platformStore";
-import type { WriteResult } from "../../types/ir";
+import type { ConversionReport, WriteResult } from "../../types/ir";
 
-export default function DirectWriteButton({ conversionId }: { conversionId: string }) {
+export default function DirectWriteButton({
+  conversionId,
+  report,
+}: {
+  conversionId: string;
+  report: ConversionReport;
+}) {
   const { difyDbUrl, difyApiBase, difySelectedAppId } = usePlatformStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<WriteResult | null>(null);
+  const blockedReason =
+    report.blocking_issues[0] || "This workflow is outside the strict supported subset.";
 
   const handleWrite = async () => {
+    if (!report.supported) {
+      setError(blockedReason);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -30,9 +42,12 @@ export default function DirectWriteButton({ conversionId }: { conversionId: stri
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
-      <button className="btn btn-secondary" onClick={handleWrite} disabled={loading}>
+      <button className="btn btn-secondary" onClick={handleWrite} disabled={loading || !report.supported}>
         {loading ? "Writing..." : difySelectedAppId ? "🗄 Update Dify App" : "🗄 Write to Dify DB"}
       </button>
+      {!error && !report.supported && (
+        <span style={{ fontSize: "0.72rem", color: "var(--c-red)" }}>{blockedReason}</span>
+      )}
       {result && (
         <div style={{ display: "grid", gap: 2 }}>
           <span style={{ fontSize: "0.72rem", color: result.status === "failed" ? "var(--c-red)" : "var(--c-green)" }}>
