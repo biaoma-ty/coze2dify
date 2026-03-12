@@ -134,10 +134,18 @@ export default function ConversionHistoryTable({ items }: { items: ConversionHis
                       <span
                         style={{
                           fontSize: "0.74rem",
-                          color: !report.supported ? "var(--c-red)" : "var(--c-text-tertiary)",
+                          color: !report.supported
+                            ? "var(--c-red)"
+                            : report.requires_manual_review
+                              ? "var(--c-amber)"
+                              : "var(--c-text-tertiary)",
                         }}
                       >
-                        {report.supported ? "Inside strict subset" : "Strict subset blocked"}
+                        {!report.supported
+                          ? "Strict subset blocked"
+                          : report.requires_manual_review
+                            ? "Manual review required"
+                            : "Inside strict subset"}
                       </span>
                     </div>
                   ) : (

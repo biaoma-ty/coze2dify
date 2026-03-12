@@ -19,8 +19,13 @@ def test_strict_subset_corpus_matches_current_support_boundary(case) -> None:
     dsl, report = service.engine.convert_from_dict(case.canvas)
 
     assert report.supported is case.expected_supported
+    assert report.requires_manual_review is case.expected_manual_review
     assert (dsl is not None) is case.expected_supported
     if case.expected_supported:
         assert report.blocking_issues == []
+        if case.expected_manual_review:
+            assert report.manual_review_reasons
+        else:
+            assert report.manual_review_reasons == []
     else:
         assert report.blocking_issues

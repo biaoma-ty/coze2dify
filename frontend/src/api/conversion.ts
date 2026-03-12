@@ -50,7 +50,7 @@ export async function getReport(conversionId: string) {
 
 export async function writeToDify(
   conversionId: string,
-  payload: { db_url?: string; app_id?: string },
+  payload: { db_url?: string; app_id?: string; confirm_reviewed?: boolean },
 ): Promise<{ conversion_id: string; app_id: string | null; mode: "create" | "update"; status: string; write_result: WriteResult }> {
   const resp = await client.post(`/convert/${conversionId}/write-to-dify`, payload);
   return resp.data;

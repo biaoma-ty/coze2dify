@@ -125,6 +125,7 @@ class ConversionService:
         *,
         db_url: str | None = None,
         app_id: str | None = None,
+        confirm_reviewed: bool = False,
     ) -> dict[str, Any]:
         task = self._get_task(db, conversion_id)
         target_db_url = db_url or settings.dify_database_url
@@ -134,6 +135,10 @@ class ConversionService:
         if not bool(report.get("supported", True)):
             blocking_issues = report.get("blocking_issues") or []
             detail = blocking_issues[0] if blocking_issues else "This workflow is outside the strict supported subset."
+            raise ValueError(detail)
+        if bool(report.get("requires_manual_review")) and not confirm_reviewed:
+            review_reasons = report.get("manual_review_reasons") or []
+            detail = review_reasons[0] if review_reasons else "Manual review is required before write-to-Dify."
             raise ValueError(detail)
 
         snapshot = dict(task.ir_snapshot or {})
@@ -387,6 +392,7 @@ class ConversionService:
         return {
             "workflow_name": report.get("workflow_name") or "",
             "supported": bool(report.get("supported", False)),
+            "requires_manual_review": bool(report.get("requires_manual_review", False)),
             "total_nodes": int(report.get("total_nodes") or 0),
             "mapped_count": int(report.get("mapped_count") or 0),
             "partial_count": int(report.get("partial_count") or 0),

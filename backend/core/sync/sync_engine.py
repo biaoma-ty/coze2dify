@@ -158,6 +158,21 @@ class SyncEngine:
                             )
                         )
                         continue
+                    manual_review_message = self._manual_review_message(conversion.get("report"))
+                    if manual_review_message is not None:
+                        summary["unsupported"] += 1
+                        items.append(
+                            self._result_item(
+                                action="inspect",
+                                status="unsupported",
+                                source_workflow_id=source_id,
+                                source_workflow_name=source_name,
+                                target_app_id=mapping["app_id"] if mapping else None,
+                                conversion_id=conversion_id,
+                                message=manual_review_message,
+                            )
+                        )
+                        continue
 
                     target_app_id = mapping["app_id"] if mapping else None
                     if action == "update":
@@ -348,6 +363,20 @@ class SyncEngine:
                             (converted.get("report") or {}).get("blocking_issues")
                             or ["Blocked by the strict supported subset."]
                         )[0],
+                    )
+                )
+                continue
+            manual_review_message = self._manual_review_message(converted.get("report"))
+            if manual_review_message is not None:
+                summary["unsupported"] += 1
+                items.append(
+                    self._result_item(
+                        action="inspect",
+                        status="unsupported",
+                        source_workflow_id=source_id,
+                        source_workflow_name=source_name,
+                        target_app_id=mapping["app_id"] if mapping else None,
+                        message=manual_review_message,
                     )
                 )
                 continue
@@ -688,6 +717,15 @@ class SyncEngine:
         return "completed"
 
     @staticmethod
+    def _manual_review_message(report: Any) -> str | None:
+        if not isinstance(report, dict) or not bool(report.get("requires_manual_review", False)):
+            return None
+        reasons = report.get("manual_review_reasons")
+        if isinstance(reasons, list) and reasons:
+            return str(reasons[0])
+        return "Manual review is required before write-to-Dify; automated sync blocks this workflow."
+
+    @staticmethod
     def _result_item(
         *,
         action: str,
@@ -774,6 +812,9 @@ class SyncEngine:
         )
         conversion_id = str(conversion["conversion_id"])
         self._attach_sync_config(db, conversion_id, config.id)
+        manual_review_message = self._manual_review_message(conversion.get("report"))
+        if manual_review_message is not None:
+            raise ValueError(manual_review_message)
         return self.conversion_service.write_to_dify(
             db,
             conversion_id,

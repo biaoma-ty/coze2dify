@@ -9,6 +9,7 @@ class CorpusCase:
     name: str
     canvas: dict[str, Any]
     expected_supported: bool
+    expected_manual_review: bool = False
     semantic_inputs: dict[str, Any] = field(default_factory=dict)
     expected_terminal: dict[str, Any] | None = None
     golden_snapshot: str | None = None
@@ -172,7 +173,11 @@ def _python_code_case() -> CorpusCase:
             "edges": [_edge("start", "code"), _edge("code", "answer")],
             "versions": {},
         },
-        expected_supported=False,
+        expected_supported=True,
+        expected_manual_review=True,
+        semantic_inputs={"input": "hello world"},
+        expected_terminal={"answer": "HELLO WORLD"},
+        golden_snapshot="code_python_uppercase",
     )
 
 

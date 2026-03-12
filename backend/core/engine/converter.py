@@ -34,6 +34,8 @@ class ConversionEngine:
     def _build_report(self, ir_workflow: IRWorkflow) -> ConversionReport:
         results: list[NodeConversionResult] = []
         mapped = partial = unmappable = skipped = 0
+        warnings: list[str] = []
+        errors: list[str] = []
         rules = {node_type: self.node_mapper.get_rule(node_type) for node_type in IRNodeType}
         support_decision = self.support_policy.assess_workflow(ir_workflow, rules=rules)
 
@@ -53,6 +55,8 @@ class ConversionEngine:
                 errors=node_support.errors,
             )
             results.append(result)
+            warnings.extend(result.warnings)
+            errors.extend(result.errors)
 
             match result.status:
                 case "mapped":
@@ -66,7 +70,9 @@ class ConversionEngine:
 
         return ConversionReport(
             supported=support_decision.supported,
+            requires_manual_review=support_decision.requires_manual_review,
             blocking_issues=support_decision.blocking_issues,
+            manual_review_reasons=support_decision.manual_review_reasons,
             workflow_name=ir_workflow.name,
             total_nodes=len(all_nodes),
             mapped_count=mapped,
@@ -74,7 +80,8 @@ class ConversionEngine:
             unmappable_count=unmappable,
             skipped_count=skipped,
             node_results=results,
-            errors=support_decision.blocking_issues,
+            warnings=self._dedupe(warnings),
+            errors=self._dedupe(errors),
         )
 
     def _iter_nodes(self, nodes: list[IRNode]) -> list[IRNode]:
@@ -84,3 +91,7 @@ class ConversionEngine:
             if node.children:
                 flattened.extend(self._iter_nodes(node.children))
         return flattened
+
+    @staticmethod
+    def _dedupe(items: list[str]) -> list[str]:
+        return list(dict.fromkeys(item for item in items if item))

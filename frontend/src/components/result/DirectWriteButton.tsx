@@ -14,12 +14,21 @@ export default function DirectWriteButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<WriteResult | null>(null);
+  const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const blockedReason =
     report.blocking_issues[0] || "This workflow is outside the strict supported subset.";
+  const manualReviewReason =
+    report.manual_review_reasons[0] || "Manual review is required before write-to-Dify.";
+  const isBlocked = !report.supported;
+  const requiresManualReview = report.requires_manual_review;
 
   const handleWrite = async () => {
-    if (!report.supported) {
+    if (isBlocked) {
       setError(blockedReason);
+      return;
+    }
+    if (requiresManualReview && !reviewConfirmed) {
+      setError(manualReviewReason);
       return;
     }
     setLoading(true);
@@ -28,6 +37,7 @@ export default function DirectWriteButton({
       const response = await writeToDify(conversionId, {
         db_url: difyDbUrl || undefined,
         app_id: difySelectedAppId || undefined,
+        confirm_reviewed: requiresManualReview ? reviewConfirmed : undefined,
       });
       setResult(response.write_result);
     } catch (e: any) {
@@ -42,11 +52,39 @@ export default function DirectWriteButton({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
-      <button className="btn btn-secondary" onClick={handleWrite} disabled={loading || !report.supported}>
+      {requiresManualReview && (
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: "0.76rem",
+            color: "var(--c-text-secondary)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={reviewConfirmed}
+            onChange={(event) => {
+              setReviewConfirmed(event.target.checked);
+              setError("");
+            }}
+          />
+          I reviewed the migrated workflow and approve the direct write.
+        </label>
+      )}
+      <button
+        className="btn btn-secondary"
+        onClick={handleWrite}
+        disabled={loading || isBlocked || (requiresManualReview && !reviewConfirmed)}
+      >
         {loading ? "Writing..." : difySelectedAppId ? "🗄 Update Dify App" : "🗄 Write to Dify DB"}
       </button>
-      {!error && !report.supported && (
+      {!error && isBlocked && (
         <span style={{ fontSize: "0.72rem", color: "var(--c-red)" }}>{blockedReason}</span>
+      )}
+      {!error && !isBlocked && requiresManualReview && (
+        <span style={{ fontSize: "0.72rem", color: "var(--c-amber)" }}>{manualReviewReason}</span>
       )}
       {result && (
         <div style={{ display: "grid", gap: 2 }}>

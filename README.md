@@ -41,8 +41,8 @@
 | 📂 **File Import + DSL Export** | ✅ Verified | Upload local workflow file and export generated DSL |
 | 🗺️ **Node Mapping** | 🟡 Strict Subset | Runtime only emits DSL for the verified supported subset; partial and unmappable nodes are blocked |
 | 🔀 **Variable Transform** | 🟡 Partial | Common `BlockInputReference` cases work; edge cases still exist |
-| 📋 **Conversion Report** | ✅ Verified | Mapping stats plus strict-subset support status and blocking issues |
-| 🗄️ **Direct Dify DB Write** | 🟡 Guarded | Only allowed for conversions inside the strict supported subset |
+| 📋 **Conversion Report** | ✅ Verified | Mapping stats plus strict-subset support status, blocking issues, and manual-review gates |
+| 🗄️ **Direct Dify DB Write** | 🟡 Guarded | Only allowed for supported conversions; high-risk nodes require explicit manual-review confirmation |
 | 📊 **Visual Diff** | 🟡 Basic | Current UI shows report + mapping table, not a full graph diff |
 | 🔍 **Platform Browse** | 🚧 In Progress | Connection UI exists, workflow selection flow is not completed |
 | 🛠️ **Dev Mode** | 🟡 Experimental | Local service detection exists, but one-click workflow operations are limited |
@@ -53,6 +53,7 @@
 - **Verified path**: file-based Coze workflow conversion into Dify graph / DSL for the strict supported subset.
 - **Verified in local testing**: migrated workflow can be written into a local Dify PostgreSQL instance and opened in Dify.
 - **Strict runtime policy**: partial and unmappable nodes are blocked instead of emitting best-effort DSL.
+- **Manual-review gate**: Python `CodeRunner` conversions are allowed only with explicit human confirmation before direct write.
 - **Coverage baseline**: a 42-case Coze workflow corpus, semantic equivalence checks, and golden snapshots back the current support boundary.
 - **Partially built**: platform browse, dev mode helpers, and direct-write UI.
 - **Not production-ready yet**: incremental sync, migration history persistence, and several API/database import flows.
@@ -67,6 +68,8 @@ The current runtime contract is intentionally conservative. Automatic DSL genera
 - Exit (`end`)
 - OutputEmitter (`answer`)
 - Comment (`skipped safely`)
+
+Python `CodeRunner` nodes are admitted only with a hard manual-review gate before `write-to-dify`.
 
 Everything else that is still marked as partial, mode-change, or unmappable in the 42-type mapping table is blocked at conversion time. See [`docs/supported-subset.md`](docs/supported-subset.md).
 
@@ -154,7 +157,7 @@ Some endpoints below exist in the API surface but are not all fully wired in the
 | `POST` | `/api/v1/coze/upload` | Upload Coze workflow file |
 | `POST` | `/api/v1/convert` | Execute conversion |
 | `GET`  | `/api/v1/convert/{id}/dsl` | Download Dify DSL |
-| `POST` | `/api/v1/convert/{id}/write-to-dify` | Write converted DSL directly to Dify PostgreSQL (blocked conversions are rejected) |
+| `POST` | `/api/v1/convert/{id}/write-to-dify` | Write converted DSL directly to Dify PostgreSQL (`confirm_reviewed` required for manual-review cases) |
 
 ### Sync
 
