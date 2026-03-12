@@ -18,6 +18,7 @@ def test_golden_snapshot_cases_exist() -> None:
         "baseline_start_end",
         "output_emitter_passthrough",
         "output_emitter_literal_supported_duplicate",
+        "code_python_uppercase",
     ]
 
 
@@ -28,6 +29,7 @@ def test_supported_cases_match_golden_yaml_snapshots(case) -> None:
     dsl, report = service.engine.convert_from_dict(case.canvas)
 
     assert report.supported is True
+    assert report.requires_manual_review is case.expected_manual_review
     assert dsl is not None
     expected_snapshot = yaml.safe_load((_SNAPSHOT_DIR / f"{case.golden_snapshot}.yml").read_text())
     actual_snapshot = yaml.safe_load(service.engine.dify_generator.to_yaml(dsl))

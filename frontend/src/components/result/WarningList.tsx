@@ -32,10 +32,20 @@ export default function WarningList({ results }: { results: NodeConversionResult
             {r.support_state === "blocked" && (
               <span style={{ color: "var(--c-red)", marginLeft: 8 }}>— Blocked</span>
             )}
+            {r.support_state === "manual_review" && (
+              <span style={{ color: "var(--c-amber)", marginLeft: 8 }}>— Manual review</span>
+            )}
             {[...new Set([...r.support_reasons, ...r.warnings, ...r.errors])].map((message, i) => (
               <span
                 key={`${r.source_node_id}-${i}`}
-                style={{ marginLeft: 8, color: r.support_state === "blocked" ? "var(--c-red)" : undefined }}
+                style={{
+                  marginLeft: 8,
+                  color: r.support_state === "blocked"
+                    ? "var(--c-red)"
+                    : r.support_state === "manual_review"
+                      ? "var(--c-amber)"
+                      : undefined,
+                }}
               >
                 — {message || (r.status === "unmappable" ? "No Dify equivalent" : "Review required")}
               </span>

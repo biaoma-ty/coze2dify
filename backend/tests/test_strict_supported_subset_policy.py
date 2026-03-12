@@ -9,6 +9,8 @@ from sqlalchemy.orm import sessionmaker
 from core.engine.conversion_service import ConversionService
 from db.database import Base
 
+from .coze_workflow_corpus import CORPUS_CASES
+
 
 _SUPPORTED_CANVAS = {
     "nodes": [
@@ -68,6 +70,8 @@ _BLOCKED_CANVAS = {
     "versions": {},
 }
 
+_MANUAL_REVIEW_CANVAS = next(case.canvas for case in CORPUS_CASES if case.name == "code_python_uppercase")
+
 
 def test_strict_subset_allows_supported_workflow() -> None:
     service = ConversionService()
@@ -89,6 +93,18 @@ def test_strict_subset_blocks_partial_or_unmappable_workflow() -> None:
     assert dsl is None
     assert report.blocking_issues
     assert report.node_results[1].support_state == "blocked"
+
+
+def test_strict_subset_admits_python_code_only_with_manual_review() -> None:
+    service = ConversionService()
+
+    dsl, report = service.engine.convert_from_dict(_MANUAL_REVIEW_CANVAS)
+
+    assert report.supported is True
+    assert report.requires_manual_review is True
+    assert report.manual_review_reasons
+    assert dsl is not None
+    assert report.node_results[1].support_state == "manual_review"
 
 
 def test_blocked_workflow_is_persisted_without_dsl_artifact(tmp_path) -> None:

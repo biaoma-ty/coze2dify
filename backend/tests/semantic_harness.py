@@ -21,6 +21,10 @@ def execute_ir_workflow(workflow: IRWorkflow, inputs: dict[str, Any]) -> dict[st
         node = node_map[node_id]
         if node.node_type == IRNodeType.START:
             values[node.id] = dict(inputs)
+        elif node.node_type == IRNodeType.CODE:
+            arguments = {var.name: _resolve_ir_variable(values, var) for var in node.inputs}
+            values[node.id] = _execute_python_code(node.config.get("code", ""), arguments)
+            terminal = values[node.id]
         elif node.node_type == IRNodeType.OUTPUT_EMITTER:
             values[node.id] = {"answer": _build_ir_answer(node.inputs, values)}
             terminal = values[node.id]
@@ -44,6 +48,13 @@ def execute_dify_workflow(dsl: DifyDSL, inputs: dict[str, Any]) -> dict[str, Any
         node_type = node.data.type
         if node_type == "start":
             values[node.id] = dict(inputs)
+        elif node_type == "code":
+            arguments = {
+                entry["variable"]: _resolve_selector(values, entry.get("value_selector", []))
+                for entry in node.data.variables
+            }
+            values[node.id] = _execute_python_code(node.data.code, arguments)
+            terminal = values[node.id]
         elif node_type == "answer":
             values[node.id] = {"answer": _render_template(node.data.answer, values)}
             terminal = values[node.id]
@@ -119,3 +130,9 @@ def _render_template(template: str, values: dict[str, dict[str, Any]]) -> str:
         return str(_resolve_selector(values, parts) or "")
 
     return _TEMPLATE_RE.sub(replace, template)
+
+
+def _execute_python_code(code: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    namespace: dict[str, Any] = {}
+    exec(code, {}, namespace)  # noqa: S102 - fixtures are repo-local test inputs
+    return dict(namespace["main"](**arguments))

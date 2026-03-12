@@ -17,6 +17,7 @@ def test_semantic_corpus_cases_exist() -> None:
         "output_emitter_passthrough",
         "output_emitter_literal_supported_duplicate",
         "comment_annotation",
+        "code_python_uppercase",
     ]
 
 
@@ -28,6 +29,7 @@ def test_supported_cases_match_ir_and_dify_terminal_semantics(case) -> None:
     dsl, report = service.engine.convert_from_ir(ir_workflow)
 
     assert report.supported is True
+    assert report.requires_manual_review is case.expected_manual_review
     assert dsl is not None
     assert execute_ir_workflow(ir_workflow, case.semantic_inputs) == case.expected_terminal
     assert execute_dify_workflow(dsl, case.semantic_inputs) == case.expected_terminal

@@ -10,6 +10,8 @@ from core.ir.types import IRNodeType, IRVariableType
 from db.database import Base
 from db.models import MigrationTask, SyncConfig
 
+from .coze_workflow_corpus import CORPUS_CASES
+
 
 MINIMAL_COZE_CANVAS = {
     "nodes": [
@@ -34,6 +36,8 @@ MINIMAL_COZE_CANVAS = {
     ],
     "versions": {},
 }
+
+MANUAL_REVIEW_COZE_CANVAS = next(case.canvas for case in CORPUS_CASES if case.name == "code_python_uppercase")
 
 
 def test_convert_uploaded_file_persists_artifacts(tmp_path) -> None:
@@ -277,3 +281,54 @@ def test_write_to_dify_persists_sanitized_failure_details(tmp_path, monkeypatch)
     assert persisted["error_message"] == "unable to connect to postgresql://***@dify.example:5432/dify"
     assert persisted["write_result"]["status"] == "failed"
     assert persisted["write_result"]["target"]["display_url"] == "postgresql://***@dify.example:5432/dify"
+
+
+def test_write_to_dify_requires_manual_review_confirmation(tmp_path, monkeypatch) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-write-manual-review.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    service = ConversionService()
+
+    class SuccessfulWriter:
+        def __init__(self, db_url: str) -> None:
+            self.db_url = db_url
+
+        def write_workflow(self, dify_dsl) -> str:  # noqa: ANN001 - test double
+            return "app-reviewed-123"
+
+    monkeypatch.setattr("core.engine.conversion_service.DifyDbWriter", SuccessfulWriter)
+
+    with session_factory() as db:
+        conversion = service.convert_uploaded_file(
+            db,
+            json.dumps(MANUAL_REVIEW_COZE_CANVAS).encode(),
+            "manual-review.json",
+        )
+
+        assert conversion["status"] == "converted"
+        assert conversion["report"]["supported"] is True
+        assert conversion["report"]["requires_manual_review"] is True
+
+        with pytest.raises(ValueError, match="manual review"):
+            service.write_to_dify(
+                db,
+                conversion["conversion_id"],
+                db_url="postgresql://writer:supersecret@dify.example:5432/dify",
+            )
+
+        write_result = service.write_to_dify(
+            db,
+            conversion["conversion_id"],
+            db_url="postgresql://writer:supersecret@dify.example:5432/dify",
+            confirm_reviewed=True,
+        )
+        persisted = service.get_conversion(db, conversion["conversion_id"])
+
+    assert write_result["status"] == "written"
+    assert write_result["write_result"]["status"] == "succeeded"
+    assert persisted["status"] == "written"
+    assert persisted["audit"]["last_write"]["app_id"] == "app-reviewed-123"
+    assert persisted["error_message"] is None
