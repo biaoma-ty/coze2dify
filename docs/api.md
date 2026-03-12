@@ -239,6 +239,23 @@ Cancel scheduled sync for a persisted config.
 
 Compare source/target differences without executing sync.
 
+---
+
+## Workbench
+
+### `GET /workbench/overview`
+
+Return an aggregated overview payload for the Migration QA workbench dashboard.
+
+The response includes:
+
+- summary card values
+- workflow list entries for the workbench selector/dashboard
+- derived status, score, migrated node count, failed node count, complexity, and last activity time
+
+Current implementation derives these values from persisted conversion history (`migration_tasks`)
+and excludes sync-owned conversion tasks.
+
 Diff payloads include the active `delete_policy`, and delete-gap items carry structured policy metadata rather
 than a generic unsupported message alone.
 
