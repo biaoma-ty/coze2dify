@@ -11,6 +11,7 @@ class CorpusCase:
     expected_supported: bool
     semantic_inputs: dict[str, Any] = field(default_factory=dict)
     expected_terminal: dict[str, Any] | None = None
+    golden_snapshot: str | None = None
 
 
 def _start_node(*, name: str = "input", var_type: str = "string") -> dict[str, Any]:
@@ -113,6 +114,7 @@ def _output_emitter_case(name: str, *, literal: str | None = None) -> CorpusCase
         expected_supported=True,
         semantic_inputs={"input": "hello world"},
         expected_terminal={"answer": literal or "hello world"},
+        golden_snapshot=name,
     )
 
 
@@ -185,6 +187,7 @@ def _baseline_case() -> CorpusCase:
         expected_supported=True,
         semantic_inputs={"input": "hello world"},
         expected_terminal={},
+        golden_snapshot="baseline_start_end",
     )
 
 
