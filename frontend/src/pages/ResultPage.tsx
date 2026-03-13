@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "@umijs/max";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Rocket, Loader2 } from "lucide-react";
 import PageShell from "../components/common/PageShell";

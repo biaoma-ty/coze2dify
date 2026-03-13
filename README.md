@@ -9,7 +9,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Umi](https://img.shields.io/badge/Umi-4.6-1677FF?logo=umami&logoColor=white)](https://umijs.org/)
+[![Ant Design Pro](https://img.shields.io/badge/Ant%20Design%20Pro-2.8-0A66C2?logo=antdesign&logoColor=white)](https://pro.ant.design/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](#-docker-deployment)
@@ -332,7 +333,7 @@ npm run dev
 GitHub Actions pipeline runs on every push and PR:
 
 - **Backend**: Python 3.10/3.11/3.12 × lint (ruff) + unit tests (pytest)
-- **Frontend**: Node 18/20 × typecheck (tsc) + build (vite)
+- **Frontend**: Node 18/20 × typecheck (tsc) + build (Umi + Ant Design Pro)
 - **Migration smoke**: Playwright uploads a reproducible Coze fixture, writes it into an ephemeral Dify 1.13.0 stack, opens the Dify workflow page, and fails on `console.error` / uncaught exceptions
 - **Docker**: Build validation for both services
 
@@ -373,7 +374,8 @@ Apache License 2.0
 ![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=black&style=flat-square)
 ![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=typescript&logoColor=white&style=flat-square)
 ![PostgreSQL](https://img.shields.io/badge/-PostgreSQL-4169E1?logo=postgresql&logoColor=white&style=flat-square)
-![Vite](https://img.shields.io/badge/-Vite-646CFF?logo=vite&logoColor=white&style=flat-square)
+![Umi](https://img.shields.io/badge/-Umi-1677FF?logo=umami&logoColor=white&style=flat-square)
+![Ant%20Design%20Pro](https://img.shields.io/badge/-Ant%20Design%20Pro-0A66C2?logo=antdesign&logoColor=white&style=flat-square)
 ![Docker](https://img.shields.io/badge/-Docker-2496ED?logo=docker&logoColor=white&style=flat-square)
 
 </div>

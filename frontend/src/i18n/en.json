@@ -4,6 +4,7 @@
     "migrate": "Migrate",
     "sync": "Sync",
     "history": "History",
+    "workbench": "Migration QA",
     "settings": "Settings"
   },
   "dashboard": {

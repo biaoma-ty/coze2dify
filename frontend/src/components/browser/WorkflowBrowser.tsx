@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@umijs/max";
 import { usePlatformStore } from "../../store/platformStore";
 import { useWorkflowStore } from "../../store/workflowStore";
 import {

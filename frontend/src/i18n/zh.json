@@ -4,6 +4,7 @@
     "migrate": "迁移",
     "sync": "同步",
     "history": "历史",
+    "workbench": "迁移质检台",
     "settings": "设置"
   },
   "dashboard": {

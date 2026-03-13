@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@umijs/max";
 import type { ConversionHistoryItem } from "../../types/ir";
 import { usePlatformStore } from "../../store/platformStore";
 

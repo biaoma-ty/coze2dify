@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "@umijs/max";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, RotateCcw, FileDown, Loader2, AlertTriangle, Eye } from "lucide-react";
 import ConversionVisualBoard from "../components/diff/ConversionVisualBoard";

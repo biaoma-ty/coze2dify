@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@umijs/max";
 import StepNavigation from "../components/layout/StepNavigation";
 import FileUpload from "../components/upload/FileUpload";
 import CozeApiConfig from "../components/upload/CozeApiConfig";

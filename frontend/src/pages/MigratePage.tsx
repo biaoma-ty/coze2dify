@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@umijs/max";
 import { useTranslation } from "react-i18next";
 import PageShell from "../components/common/PageShell";
 import FileUpload from "../components/upload/FileUpload";

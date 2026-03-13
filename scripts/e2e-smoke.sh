@@ -17,6 +17,7 @@ DIFY_DB_URL=""
 DIFY_BASE_URL=""
 APP_BASE_URL=""
 RUNTIME_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/coze2dify-e2e-XXXX")"
+BACKEND_DB_PATH="$(mktemp /tmp/coze2dify-backend-XXXX.db)"
 DOCKER_PROJECT="coze2dify-e2e-${RANDOM}"
 BACKEND_LOG="${RUNTIME_ROOT}/backend.log"
 FRONTEND_LOG="${RUNTIME_ROOT}/frontend.log"
@@ -139,6 +140,7 @@ cleanup() {
     -f "${ROOT_DIR}/e2e/dify/docker-compose.yml" \
     down -v --remove-orphans >/dev/null 2>&1 || true
 
+  rm -f "${BACKEND_DB_PATH}" >/dev/null 2>&1 || true
   cleanup_runtime_root
 
   trap - EXIT
@@ -208,9 +210,10 @@ if [ "${setup_status}" != "201" ] && ! grep -q 'already_setup' "${setup_response
 fi
 
 log_section "Starting coze2dify backend"
+chmod 600 "${BACKEND_DB_PATH}" || true
 (
   cd "${ROOT_DIR}/backend"
-  COZE2DIFY_DATABASE_URL="sqlite:///${RUNTIME_ROOT}/coze2dify.db" \
+  COZE2DIFY_DATABASE_URL="sqlite:///${BACKEND_DB_PATH}" \
     "${BACKEND_PYTHON}" -m uvicorn main:app --host 127.0.0.1 --port "${BACKEND_PORT}" \
     >"${BACKEND_LOG}" 2>&1
 ) &
@@ -221,8 +224,10 @@ wait_for_http "http://127.0.0.1:${BACKEND_PORT}/health" "coze2dify backend"
 log_section "Starting coze2dify frontend"
 (
   cd "${ROOT_DIR}/frontend"
-  VITE_API_PROXY_TARGET="http://127.0.0.1:${BACKEND_PORT}" \
-    npm run dev -- --host 127.0.0.1 --port "${FRONTEND_PORT}" --strictPort \
+  HOST="127.0.0.1" \
+    PORT="${FRONTEND_PORT}" \
+    API_PROXY_TARGET="http://127.0.0.1:${BACKEND_PORT}" \
+    npm run dev \
     >"${FRONTEND_LOG}" 2>&1
 ) &
 FRONTEND_PID=$!
