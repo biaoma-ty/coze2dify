@@ -104,9 +104,7 @@ class WorkbenchService:
             "migrated_nodes": migrated_nodes,
             "failed_nodes": failed_nodes,
             "pending_reviews": sum(
-                1
-                for workflow in workflows
-                if workflow.requires_manual_review and workflow.status != "verified"
+                1 for workflow in workflows if workflow.requires_manual_review and workflow.status != "verified"
             ),
         }
 

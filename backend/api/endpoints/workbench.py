@@ -16,4 +16,3 @@ async def get_workbench_overview(
     db: Session = Depends(get_db),
 ):
     return service.get_overview(db, limit=limit)
-
