@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { C } from "../theme";
-import { ERROR_PATTERNS, TEST_CASES } from "../mockData";
-import type { WorkflowSummary } from "../types";
+import type { TestingData, WorkflowSummary } from "../types";
 import Panel from "../components/Panel";
 import SegmentTabs from "../components/SegmentTabs";
 import StatusBadge from "../components/StatusBadge";
@@ -12,16 +11,28 @@ type TestingTab = "cases" | "patterns";
 
 interface TestingViewProps {
   workflow: WorkflowSummary;
+  data: TestingData;
+  onGenerate: () => void;
+  onRunAll: () => void;
+  generating: boolean;
+  running: boolean;
 }
 
-export default function TestingView({ workflow }: TestingViewProps) {
+export default function TestingView({
+  workflow,
+  data,
+  onGenerate,
+  onRunAll,
+  generating,
+  running,
+}: TestingViewProps) {
   const [tab, setTab] = useState<TestingTab>("cases");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const summaryCards = [
-    { label: "总用例", value: TEST_CASES.length, color: C.acc },
-    { label: "通过", value: TEST_CASES.filter((item) => item.status === "pass").length, color: C.ok },
-    { label: "失败", value: TEST_CASES.filter((item) => item.status === "fail").length, color: C.err },
-    { label: "错误模式", value: ERROR_PATTERNS.length, color: C.err },
+    { label: "总用例", value: data.cases.length, color: C.acc },
+    { label: "通过", value: data.cases.filter((item) => item.status === "pass").length, color: C.ok },
+    { label: "失败", value: data.cases.filter((item) => item.status === "fail").length, color: C.err },
+    { label: "错误模式", value: data.patterns.length, color: C.err },
   ];
 
   return (
@@ -32,11 +43,11 @@ export default function TestingView({ workflow }: TestingViewProps) {
           <p style={{ margin: 0, color: C.tx2, fontSize: 12 }}>{workflow.name}</p>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <WorkbenchButton variant="primary" type="button">
-            AI 生成
+          <WorkbenchButton variant="primary" type="button" onClick={onGenerate} disabled={generating}>
+            {generating ? "生成中…" : "AI 生成"}
           </WorkbenchButton>
-          <WorkbenchButton variant="success" type="button">
-            全部运行
+          <WorkbenchButton variant="success" type="button" onClick={onRunAll} disabled={running}>
+            {running ? "运行中…" : "全部运行"}
           </WorkbenchButton>
         </div>
       </div>
@@ -86,17 +97,17 @@ export default function TestingView({ workflow }: TestingViewProps) {
       <div style={{ marginTop: 12 }}>
         {tab === "cases" && (
           <Panel>
-            {TEST_CASES.map((test, index) => {
+            {data.cases.map((test, index) => {
               const expanded = expandedId === test.id;
               const similarityColor =
                 test.sim >= 0.85 ? C.ok : test.sim >= 0.5 ? C.warn : C.err;
-              const errorPattern = ERROR_PATTERNS.find((pattern) => pattern.key === test.ep);
+              const errorPattern = data.patterns.find((pattern) => pattern.key === test.ep);
 
               return (
                 <div
                   key={test.id}
                   style={{
-                    borderBottom: index < TEST_CASES.length - 1 ? `1px solid ${C.bd}` : "none",
+                    borderBottom: index < data.cases.length - 1 ? `1px solid ${C.bd}` : "none",
                   }}
                 >
                   <div
@@ -204,7 +215,7 @@ export default function TestingView({ workflow }: TestingViewProps) {
 
         {tab === "patterns" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {ERROR_PATTERNS.map((pattern) => (
+            {data.patterns.map((pattern) => (
               <Panel key={pattern.id} style={{ padding: "14px 16px" }}>
                 <div
                   style={{

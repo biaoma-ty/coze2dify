@@ -1,15 +1,15 @@
 import { C } from "../theme";
-import { KNOWLEDGE_BASES } from "../mockData";
-import type { WorkflowSummary } from "../types";
+import type { KnowledgeBaseRecord, WorkflowSummary } from "../types";
 import Panel from "../components/Panel";
 import { IcCheck } from "../components/icons";
 import StatusBadge from "../components/StatusBadge";
 
 interface KnowledgeViewProps {
   workflow: WorkflowSummary;
+  records: KnowledgeBaseRecord[];
 }
 
-export default function KnowledgeView({ workflow }: KnowledgeViewProps) {
+export default function KnowledgeView({ workflow, records }: KnowledgeViewProps) {
   return (
     <div>
       <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px" }}>知识库迁移</h1>
@@ -39,7 +39,7 @@ export default function KnowledgeView({ workflow }: KnowledgeViewProps) {
             </tr>
           </thead>
           <tbody>
-            {KNOWLEDGE_BASES.map((record, index) => (
+            {records.map((record, index) => (
               <tr key={`${record.name}-${index}`} style={{ borderBottom: `1px solid ${C.bd}` }}>
                 <td style={{ padding: "8px 10px", fontWeight: 500, fontSize: 12 }}>
                   {record.name}

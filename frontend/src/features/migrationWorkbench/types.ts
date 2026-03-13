@@ -24,6 +24,7 @@ export type Severity = "critical" | "high" | "medium" | "low";
 export type Compatibility = "full" | "partial" | "custom" | "none";
 export type TestStatus = "pass" | "fail";
 export type ReviewVerdict = "equivalent" | "acceptable" | "not_eq" | null;
+export type ReviewVerdictValue = Exclude<ReviewVerdict, null>;
 export type SandboxStatus = "idle" | "starting" | "running";
 
 export type WorkbenchPageKey =
@@ -191,3 +192,59 @@ export interface LiveMetric {
   dify: string;
 }
 
+export interface WorkbenchOverviewSummary {
+  totalWorkflows: number;
+  verifiedWorkflows: number;
+  averageScore: number;
+  totalNodes: number;
+  migratedNodes: number;
+  failedNodes: number;
+  pendingReviews: number;
+}
+
+export interface WorkbenchOverviewResponse {
+  summary: WorkbenchOverviewSummary;
+  workflows: WorkflowSummary[];
+}
+
+export interface TopologyData {
+  coze: DagGraphData;
+  dify: DagGraphData;
+  diffs: StructureDiffItem[];
+}
+
+export interface EquivalenceData {
+  nodes: NodeComparison[];
+  prompt: PromptDiffData;
+  promptSimilarity: number;
+  variables: VariableMapping[];
+  plugins: PluginCompatibilityItem[];
+}
+
+export interface TestingData {
+  cases: TestCase[];
+  patterns: ErrorPattern[];
+  generated?: number;
+  executed?: number;
+  lastRunAt?: string;
+}
+
+export interface KnowledgeData {
+  records: KnowledgeBaseRecord[];
+}
+
+export interface ReviewData {
+  items: ReviewItem[];
+}
+
+export interface ReleaseData {
+  traffic: number;
+  stages: CanaryStage[];
+  versions: RollbackVersion[];
+}
+
+export interface SandboxData {
+  status: SandboxStatus;
+  messages: SandboxMessage[];
+  metrics: LiveMetric[];
+}
