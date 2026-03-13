@@ -2,6 +2,7 @@
   "nav": {
     "dashboard": "仪表盘",
     "migrate": "迁移",
+    "workbench": "工作台",
     "sync": "同步",
     "history": "历史",
     "settings": "设置"

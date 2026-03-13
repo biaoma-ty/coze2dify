@@ -11,6 +11,7 @@ import SyncRunDetailPage from "./pages/SyncRunDetailPage";
 import UnifiedHistoryPage from "./pages/UnifiedHistoryPage";
 import ConversionDetailPage from "./pages/ConversionDetailPage";
 import SettingsPage from "./pages/SettingsPage";
+import MigrationWorkbenchPage from "./pages/MigrationWorkbenchPage";
 
 export function AppRoutes() {
   return (
@@ -36,6 +37,7 @@ export function AppRoutes() {
 
       {/* Settings */}
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/workbench" element={<MigrationWorkbenchPage />} />
 
       {/* Backward compatibility redirects */}
       <Route path="/diff/:conversionId" element={<RedirectDiff />} />
