@@ -8,12 +8,14 @@ import {
   History,
   Settings,
   Globe,
+  FlaskConical,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 const NAV_ITEMS: Array<{ to: string; labelKey: string; icon: LucideIcon }> = [
   { to: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
   { to: "/migrate", labelKey: "nav.migrate", icon: ArrowRightLeft },
+  { to: "/workbench", labelKey: "nav.workbench", icon: FlaskConical },
   { to: "/sync", labelKey: "nav.sync", icon: RefreshCw },
   { to: "/history", labelKey: "nav.history", icon: History },
   { to: "/settings", labelKey: "nav.settings", icon: Settings },
