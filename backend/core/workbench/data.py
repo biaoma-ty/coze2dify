@@ -162,9 +162,7 @@ EQUIVALENCE: dict[str, Any] = {
             "cCfg": {"method": "POST", "auth": "headers"},
             "dCfg": {"method": "POST", "auth": "auth_object"},
             "status": "error",
-            "diff": [
-                {"field": "auth", "coze": "headers", "dify": "auth object", "sev": "high"}
-            ],
+            "diff": [{"field": "auth", "coze": "headers", "dify": "auth object", "sev": "high"}],
         },
     ],
     "prompt": {
