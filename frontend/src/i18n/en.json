@@ -2,9 +2,9 @@
   "nav": {
     "dashboard": "Dashboard",
     "migrate": "Migrate",
-    "workbench": "Workbench",
     "sync": "Sync",
     "history": "History",
+    "workbench": "Migration QA",
     "settings": "Settings"
   },
   "dashboard": {

@@ -17,6 +17,7 @@ DIFY_DB_URL=""
 DIFY_BASE_URL=""
 APP_BASE_URL=""
 RUNTIME_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/coze2dify-e2e-XXXX")"
+BACKEND_DB_PATH="$(mktemp "${TMPDIR:-/tmp}/coze2dify-backend-XXXXXX")"
 DOCKER_PROJECT="coze2dify-e2e-${RANDOM}"
 BACKEND_LOG="${RUNTIME_ROOT}/backend.log"
 FRONTEND_LOG="${RUNTIME_ROOT}/frontend.log"
@@ -139,6 +140,7 @@ cleanup() {
     -f "${ROOT_DIR}/e2e/dify/docker-compose.yml" \
     down -v --remove-orphans >/dev/null 2>&1 || true
 
+  rm -f "${BACKEND_DB_PATH}" >/dev/null 2>&1 || true
   cleanup_runtime_root
 
   trap - EXIT
@@ -208,9 +210,10 @@ if [ "${setup_status}" != "201" ] && ! grep -q 'already_setup' "${setup_response
 fi
 
 log_section "Starting coze2dify backend"
+chmod 600 "${BACKEND_DB_PATH}" || true
 (
   cd "${ROOT_DIR}/backend"
-  COZE2DIFY_DATABASE_URL="sqlite:///${RUNTIME_ROOT}/coze2dify.db" \
+  COZE2DIFY_DATABASE_URL="sqlite:///${BACKEND_DB_PATH}" \
     "${BACKEND_PYTHON}" -m uvicorn main:app --host 127.0.0.1 --port "${BACKEND_PORT}" \
     >"${BACKEND_LOG}" 2>&1
 ) &
@@ -218,16 +221,130 @@ BACKEND_PID=$!
 
 wait_for_http "http://127.0.0.1:${BACKEND_PORT}/health" "coze2dify backend"
 
+log_section "Building coze2dify frontend"
+(
+  cd "${ROOT_DIR}/frontend"
+  UMI_APP_API_BASE_URL="/api/v1" npm run build \
+    >"${FRONTEND_LOG}" 2>&1
+)
+
 log_section "Starting coze2dify frontend"
 (
   cd "${ROOT_DIR}/frontend"
-  VITE_API_PROXY_TARGET="http://127.0.0.1:${BACKEND_PORT}" \
-    npm run dev -- --host 127.0.0.1 --port "${FRONTEND_PORT}" --strictPort \
-    >"${FRONTEND_LOG}" 2>&1
+  FRONTEND_PORT="${FRONTEND_PORT}" DIST_DIR="${ROOT_DIR}/frontend/dist" BACKEND_PORT="${BACKEND_PORT}" node <<'NODE' >>"${FRONTEND_LOG}" 2>&1
+const fs = require("fs");
+const http = require("http");
+const path = require("path");
+const { pipeline } = require("stream");
+
+const distDir = process.env.DIST_DIR;
+const port = Number(process.env.FRONTEND_PORT);
+const backendPort = Number(process.env.BACKEND_PORT);
+
+const mimeTypes = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".ico": "image/x-icon",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".js": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".txt": "text/plain; charset=utf-8",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
+
+function respondWithFile(res, filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = mimeTypes[ext] || "application/octet-stream";
+  res.writeHead(200, { "Content-Type": contentType });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+function proxyApiRequest(req, res) {
+  const upstream = http.request(
+    {
+      host: "127.0.0.1",
+      port: backendPort,
+      path: req.url,
+      method: req.method,
+      headers: req.headers,
+    },
+    (upstreamRes) => {
+      res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
+      pipeline(upstreamRes, res, () => {});
+    },
+  );
+
+  upstream.on("error", (error) => {
+    res.writeHead(502, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ detail: `Frontend proxy error: ${error.message}` }));
+  });
+
+  pipeline(req, upstream, () => {});
+}
+
+const server = http.createServer((req, res) => {
+  if ((req.url || "").startsWith("/api/")) {
+    proxyApiRequest(req, res);
+    return;
+  }
+
+  const requestPath = decodeURIComponent((req.url || "/").split("?")[0]);
+  const normalizedPath = requestPath === "/" ? "/index.html" : requestPath;
+  const candidatePath = path.join(distDir, normalizedPath.replace(/^\/+/, ""));
+
+  if (candidatePath.startsWith(distDir) && fs.existsSync(candidatePath) && fs.statSync(candidatePath).isFile()) {
+    respondWithFile(res, candidatePath);
+    return;
+  }
+
+  respondWithFile(res, path.join(distDir, "index.html"));
+});
+
+server.listen(port, "127.0.0.1", () => {
+  console.log(`Static frontend listening on http://127.0.0.1:${port}`);
+});
+NODE
 ) &
 FRONTEND_PID=$!
 
 wait_for_http "${APP_BASE_URL}" "coze2dify frontend"
+wait_for_http "${APP_BASE_URL}/umi.js" "coze2dify frontend bundle"
+
+log_section "Waiting for frontend app readiness"
+(
+  cd "${ROOT_DIR}/frontend"
+  APP_BASE_URL="${APP_BASE_URL}" node <<'NODE'
+const { chromium } = require("@playwright/test");
+
+async function main() {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+
+  try {
+    await page.goto(`${process.env.APP_BASE_URL}/migrate`, {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    await page.getByRole("heading", { name: "Import Coze Workflow" }).waitFor({
+      state: "visible",
+      timeout: 60_000,
+    });
+  } finally {
+    await browser.close();
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+NODE
+)
 
 log_section "Running browser smoke"
 (

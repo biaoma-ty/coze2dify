@@ -1,7 +1,5 @@
-import { useState } from "react";
 import { C } from "../theme";
-import { CANARY_STAGES, ROLLBACK_VERSIONS } from "../mockData";
-import type { WorkflowSummary } from "../types";
+import type { ReleaseData, WorkflowSummary } from "../types";
 import Panel from "../components/Panel";
 import SectionHeader from "../components/SectionHeader";
 import StatusBadge from "../components/StatusBadge";
@@ -9,11 +7,20 @@ import WorkbenchButton from "../components/WorkbenchButton";
 
 interface ReleaseViewProps {
   workflow: WorkflowSummary;
+  data: ReleaseData;
+  onTrafficChange: (traffic: number) => void;
+  onRollback: (version?: string) => void;
+  updating: boolean;
 }
 
-export default function ReleaseView({ workflow }: ReleaseViewProps) {
-  const [traffic, setTraffic] = useState(20);
-  const activeIndex = CANARY_STAGES.findIndex((stage) => stage.st === "active");
+export default function ReleaseView({
+  workflow,
+  data,
+  onTrafficChange,
+  onRollback,
+  updating,
+}: ReleaseViewProps) {
+  const activeIndex = data.stages.findIndex((stage) => stage.st === "active");
 
   return (
     <div>
@@ -25,11 +32,8 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
       <Panel style={{ padding: "18px 20px", marginBottom: 16 }}>
         <SectionHeader>发布阶段</SectionHeader>
         <div style={{ display: "flex", alignItems: "center" }}>
-          {CANARY_STAGES.map((stage, index) => (
-            <div
-              key={stage.label}
-              style={{ display: "contents" }}
-            >
+          {data.stages.map((stage, index) => (
+            <div key={stage.label} style={{ display: "contents" }}>
               <div
                 style={{
                   display: "flex",
@@ -49,8 +53,7 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
                     fontSize: 10,
                     fontWeight: 700,
                     fontFamily: C.mono,
-                    background:
-                      stage.st === "done" ? C.ok : stage.st === "active" ? C.acc : C.bd,
+                    background: stage.st === "done" ? C.ok : stage.st === "active" ? C.acc : C.bd,
                     color: stage.st !== "pending" ? "#fff" : C.tx3,
                   }}
                 >
@@ -60,18 +63,13 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
                   style={{
                     fontSize: 10,
                     fontWeight: stage.st === "active" ? 700 : 400,
-                    color:
-                      stage.st === "active"
-                        ? C.acc
-                        : stage.st === "done"
-                          ? C.ok
-                          : C.tx3,
+                    color: stage.st === "active" ? C.acc : stage.st === "done" ? C.ok : C.tx3,
                   }}
                 >
                   {stage.label}
                 </div>
               </div>
-              {index < CANARY_STAGES.length - 1 && (
+              {index < data.stages.length - 1 && (
                 <div
                   style={{
                     flex: 1,
@@ -92,10 +90,10 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
           <SectionHeader>流量分配</SectionHeader>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
             <span style={{ fontSize: 11, color: C.coze, fontWeight: 600 }}>
-              Coze {100 - traffic}%
+              Coze {100 - data.traffic}%
             </span>
             <span style={{ fontSize: 11, color: C.dify, fontWeight: 600 }}>
-              Dify {traffic}%
+              Dify {data.traffic}%
             </span>
           </div>
           <div
@@ -110,14 +108,14 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
           >
             <div
               style={{
-                width: `${100 - traffic}%`,
+                width: `${100 - data.traffic}%`,
                 background: C.coze,
                 transition: "width .3s",
               }}
             />
             <div
               style={{
-                width: `${traffic}%`,
+                width: `${data.traffic}%`,
                 background: C.dify,
                 transition: "width .3s",
               }}
@@ -127,9 +125,10 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
             type="range"
             min={0}
             max={100}
-            value={traffic}
-            onChange={(event) => setTraffic(Number(event.target.value))}
+            value={data.traffic}
+            onChange={(event) => onTrafficChange(Number(event.target.value))}
             style={{ width: "100%", marginBottom: 8 }}
+            disabled={updating}
           />
           <div style={{ display: "flex", gap: 5 }}>
             {[5, 20, 50, 100].map((preset) => (
@@ -137,8 +136,9 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
                 key={preset}
                 compact
                 type="button"
-                variant={traffic === preset ? "primary" : "secondary"}
-                onClick={() => setTraffic(preset)}
+                variant={data.traffic === preset ? "primary" : "secondary"}
+                onClick={() => onTrafficChange(preset)}
+                disabled={updating}
               >
                 {preset}%
               </WorkbenchButton>
@@ -148,6 +148,8 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
               type="button"
               variant="danger"
               style={{ marginLeft: "auto" }}
+              onClick={() => onRollback()}
+              disabled={updating}
             >
               回滚
             </WorkbenchButton>
@@ -156,7 +158,7 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
 
         <Panel style={{ padding: "16px 18px" }}>
           <SectionHeader>版本历史</SectionHeader>
-          {ROLLBACK_VERSIONS.map((version, index) => (
+          {data.versions.map((version, index) => (
             <div
               key={version.ver}
               style={{
@@ -164,7 +166,7 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
                 alignItems: "center",
                 gap: 10,
                 padding: "8px 0",
-                borderBottom: index < ROLLBACK_VERSIONS.length - 1 ? `1px solid ${C.bd}` : "none",
+                borderBottom: index < data.versions.length - 1 ? `1px solid ${C.bd}` : "none",
               }}
             >
               <div
@@ -212,7 +214,13 @@ export default function ReleaseView({ workflow }: ReleaseViewProps) {
                 </div>
               </div>
               {version.st === "rollback" && (
-                <WorkbenchButton compact type="button" variant="danger">
+                <WorkbenchButton
+                  compact
+                  type="button"
+                  variant="danger"
+                  onClick={() => onRollback(version.ver)}
+                  disabled={updating}
+                >
                   回滚
                 </WorkbenchButton>
               )}

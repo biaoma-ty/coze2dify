@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@umijs/max";
 import { useTranslation } from "react-i18next";
 import { GitCompare, RefreshCw } from "lucide-react";
 import type { ConversionHistoryItem } from "../../types/ir";

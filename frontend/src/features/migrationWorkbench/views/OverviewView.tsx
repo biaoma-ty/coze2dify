@@ -1,6 +1,5 @@
 import { COMPLEXITY_MAP, C, STATUS_MAP } from "../theme";
-import type { ReviewItem, WorkflowSummary } from "../types";
-import { summarizeWorkflows } from "../utils";
+import type { WorkbenchOverviewSummary, WorkflowSummary } from "../types";
 import Panel from "../components/Panel";
 import ProgressBar from "../components/ProgressBar";
 import SectionHeader from "../components/SectionHeader";
@@ -9,17 +8,20 @@ import WorkbenchButton from "../components/WorkbenchButton";
 import { IcArrow } from "../components/icons";
 
 interface OverviewViewProps {
+  summary: WorkbenchOverviewSummary;
   workflows: WorkflowSummary[];
-  reviewQueue: ReviewItem[];
   onInspectWorkflow: (workflowId: string) => void;
+  onBatchMigrate: () => void;
+  batchMigrating: boolean;
 }
 
 export default function OverviewView({
+  summary,
   workflows,
-  reviewQueue,
   onInspectWorkflow,
+  onBatchMigrate,
+  batchMigrating,
 }: OverviewViewProps) {
-  const summary = summarizeWorkflows(workflows, reviewQueue);
   const cards = [
     {
       label: "总工作流",
@@ -143,9 +145,15 @@ export default function OverviewView({
 
       <SectionHeader
         action={
-          <WorkbenchButton compact variant="primary" type="button">
+          <WorkbenchButton
+            compact
+            variant="primary"
+            type="button"
+            onClick={onBatchMigrate}
+            disabled={batchMigrating}
+          >
             <IcArrow />
-            批量迁移
+            {batchMigrating ? "迁移中…" : "批量迁移"}
           </WorkbenchButton>
         }
       >

@@ -1,6 +1,5 @@
-import type { Dispatch, SetStateAction } from "react";
 import { C } from "../theme";
-import type { ReviewItem, WorkflowSummary } from "../types";
+import type { ReviewItem, ReviewVerdictValue, WorkflowSummary } from "../types";
 import Panel from "../components/Panel";
 import StatusBadge from "../components/StatusBadge";
 import WorkbenchButton from "../components/WorkbenchButton";
@@ -8,20 +7,16 @@ import WorkbenchButton from "../components/WorkbenchButton";
 interface ReviewViewProps {
   workflow: WorkflowSummary;
   reviewQueue: ReviewItem[];
-  setReviewQueue: Dispatch<SetStateAction<ReviewItem[]>>;
+  onSetVerdict: (reviewId: string, verdict: ReviewVerdictValue) => void;
+  updatingId: string | null;
 }
 
 export default function ReviewView({
   workflow,
   reviewQueue,
-  setReviewQueue,
+  onSetVerdict,
+  updatingId,
 }: ReviewViewProps) {
-  const setVerdict = (id: string, verdict: ReviewItem["verdict"]) => {
-    setReviewQueue((current) =>
-      current.map((item) => (item.id === id ? { ...item, verdict } : item)),
-    );
-  };
-
   return (
     <div>
       <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px" }}>人工审核</h1>
@@ -112,14 +107,16 @@ export default function ReviewView({
                 compact
                 type="button"
                 variant="success"
-                onClick={() => setVerdict(review.id, "equivalent")}
+                onClick={() => onSetVerdict(review.id, "equivalent")}
+                disabled={updatingId === review.id}
               >
                 等价
               </WorkbenchButton>
               <WorkbenchButton
                 compact
                 type="button"
-                onClick={() => setVerdict(review.id, "acceptable")}
+                onClick={() => onSetVerdict(review.id, "acceptable")}
+                disabled={updatingId === review.id}
               >
                 可接受
               </WorkbenchButton>
@@ -127,7 +124,8 @@ export default function ReviewView({
                 compact
                 type="button"
                 variant="danger"
-                onClick={() => setVerdict(review.id, "not_eq")}
+                onClick={() => onSetVerdict(review.id, "not_eq")}
+                disabled={updatingId === review.id}
               >
                 不等价
               </WorkbenchButton>

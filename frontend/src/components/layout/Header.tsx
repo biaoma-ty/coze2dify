@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "@umijs/max";
 import { useTranslation } from "react-i18next";
 import { usePlatformStore } from "../../store/platformStore";
 import {

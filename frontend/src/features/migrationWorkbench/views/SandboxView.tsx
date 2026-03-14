@@ -1,77 +1,37 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { C } from "../theme";
-import { SANDBOX_METRICS } from "../mockData";
-import type { SandboxMessage, SandboxStatus, WorkflowSummary } from "../types";
-import { buildSandboxReply, createMessageId } from "../utils";
+import type { SandboxData, WorkflowSummary } from "../types";
 import Panel from "../components/Panel";
 import WorkbenchButton from "../components/WorkbenchButton";
 
 interface SandboxViewProps {
   workflow: WorkflowSummary;
+  data: SandboxData;
+  onStart: () => void;
+  onStop: () => void;
+  onSend: (text: string) => void;
+  sending: boolean;
 }
 
-export default function SandboxView({ workflow }: SandboxViewProps) {
-  const [status, setStatus] = useState<SandboxStatus>("idle");
-  const [messages, setMessages] = useState<SandboxMessage[]>([]);
+export default function SandboxView({
+  workflow,
+  data,
+  onStart,
+  onStop,
+  onSend,
+  sending,
+}: SandboxViewProps) {
   const [input, setInput] = useState("");
-  const timersRef = useRef<number[]>([]);
-
-  useEffect(() => {
-    return () => {
-      timersRef.current.forEach((timerId) => window.clearTimeout(timerId));
-    };
-  }, []);
-
-  const start = () => {
-    setStatus("starting");
-    timersRef.current.push(window.setTimeout(() => setStatus("running"), 1500));
-  };
-
-  const stop = () => {
-    timersRef.current.forEach((timerId) => window.clearTimeout(timerId));
-    timersRef.current = [];
-    setStatus("idle");
-    setMessages([]);
-  };
+  const status = data.status;
+  const messages = data.messages;
 
   const send = () => {
     const text = input.trim();
     if (!text || status !== "running") {
       return;
     }
-
     setInput("");
-    setMessages((current) => [...current, { id: createMessageId("user"), role: "user", text }]);
-
-    timersRef.current.push(
-      window.setTimeout(() => {
-        const reply = buildSandboxReply(text, "coze");
-        setMessages((current) => [
-          ...current,
-          {
-            id: createMessageId("coze"),
-            role: "coze",
-            text: reply.text,
-            latencyMs: reply.latencyMs,
-          },
-        ]);
-      }, 800),
-    );
-
-    timersRef.current.push(
-      window.setTimeout(() => {
-        const reply = buildSandboxReply(text, "dify");
-        setMessages((current) => [
-          ...current,
-          {
-            id: createMessageId("dify"),
-            role: "dify",
-            text: reply.text,
-            latencyMs: reply.latencyMs,
-          },
-        ]);
-      }, 1200),
-    );
+    onSend(text);
   };
 
   const roleColors = {
@@ -104,7 +64,7 @@ export default function SandboxView({ workflow }: SandboxViewProps) {
               fontSize: 10,
               fontWeight: 600,
               background: status === "running" ? C.okD : `${C.tx3}15`,
-              color: status === "running" ? C.ok : C.tx3,
+              color: status === "running" ? C.ok : status === "starting" ? C.acc : C.tx3,
             }}
           >
             <span
@@ -112,7 +72,7 @@ export default function SandboxView({ workflow }: SandboxViewProps) {
                 width: 5,
                 height: 5,
                 borderRadius: "50%",
-                background: status === "running" ? C.ok : C.tx3,
+                background: status === "running" ? C.ok : status === "starting" ? C.acc : C.tx3,
               }}
             />
             {status === "idle" ? "未启动" : status === "starting" ? "启动中…" : "运行中"}
@@ -120,7 +80,7 @@ export default function SandboxView({ workflow }: SandboxViewProps) {
           <WorkbenchButton
             type="button"
             variant={status === "idle" ? "success" : "danger"}
-            onClick={status === "idle" ? start : stop}
+            onClick={status === "idle" ? onStart : onStop}
           >
             {status === "idle" ? "启动" : "停止"}
           </WorkbenchButton>
@@ -206,7 +166,7 @@ export default function SandboxView({ workflow }: SandboxViewProps) {
                 }
               }}
               placeholder={status === "running" ? "输入消息…" : "先启动"}
-              disabled={status !== "running"}
+              disabled={status !== "running" || sending}
               style={{
                 flex: 1,
                 padding: "7px 10px",
@@ -219,8 +179,8 @@ export default function SandboxView({ workflow }: SandboxViewProps) {
                 outline: "none",
               }}
             />
-            <WorkbenchButton variant="primary" type="button" onClick={send}>
-              发送
+            <WorkbenchButton variant="primary" type="button" onClick={send} disabled={sending}>
+              {sending ? "发送中…" : "发送"}
             </WorkbenchButton>
           </div>
         </Panel>
@@ -237,14 +197,14 @@ export default function SandboxView({ workflow }: SandboxViewProps) {
           >
             实时指标
           </div>
-          {SANDBOX_METRICS.map((metric, index) => (
+          {data.metrics.map((metric, index) => (
             <div
               key={metric.label}
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 padding: "4px 0",
-                borderBottom: index < SANDBOX_METRICS.length - 1 ? `1px solid ${C.bd}` : "none",
+                borderBottom: index < data.metrics.length - 1 ? `1px solid ${C.bd}` : "none",
               }}
             >
               <span style={{ fontSize: 10, color: C.tx3 }}>{metric.label}</span>

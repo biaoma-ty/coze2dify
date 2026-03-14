@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams } from "@umijs/max";
 import StepNavigation from "../components/layout/StepNavigation";
 import MappingTable from "../components/mapping/MappingTable";
 import { useWorkflowStore } from "../store/workflowStore";

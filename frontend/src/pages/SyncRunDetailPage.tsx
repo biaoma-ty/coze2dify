@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "@umijs/max";
 import { useTranslation } from "react-i18next";
 import PageShell from "../components/common/PageShell";
 import Skeleton from "../components/common/Skeleton";

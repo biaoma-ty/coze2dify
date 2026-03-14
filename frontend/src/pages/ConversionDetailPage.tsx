@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { Link, useParams } from "@umijs/max";
 import { useTranslation } from "react-i18next";
 import { Download, ExternalLink } from "lucide-react";
 import PageShell from "../components/common/PageShell";

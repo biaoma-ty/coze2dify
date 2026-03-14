@@ -1,6 +1,5 @@
 import { C } from "../theme";
-import { DAG_COZE, DAG_DIFY, STRUCTURE_DIFFS } from "../mockData";
-import type { WorkflowSummary } from "../types";
+import type { TopologyData, WorkflowSummary } from "../types";
 import { getSeverityTone } from "../utils";
 import DagGraph from "../components/DagGraph";
 import Panel from "../components/Panel";
@@ -9,9 +8,10 @@ import StatusBadge from "../components/StatusBadge";
 
 interface TopologyViewProps {
   workflow: WorkflowSummary;
+  data: TopologyData;
 }
 
-export default function TopologyView({ workflow }: TopologyViewProps) {
+export default function TopologyView({ workflow, data }: TopologyViewProps) {
   return (
     <div>
       <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px" }}>DAG 拓扑对比</h1>
@@ -28,8 +28,8 @@ export default function TopologyView({ workflow }: TopologyViewProps) {
         }}
       >
         {[
-          { label: "Coze", graph: DAG_COZE, color: C.coze, platform: "coze" as const },
-          { label: "Dify", graph: DAG_DIFY, color: C.dify, platform: "dify" as const },
+          { label: "Coze", graph: data.coze, color: C.coze, platform: "coze" as const },
+          { label: "Dify", graph: data.dify, color: C.dify, platform: "dify" as const },
         ].map((side) => (
           <Panel key={side.label} style={{ padding: "12px 14px" }}>
             <div
@@ -79,7 +79,7 @@ export default function TopologyView({ workflow }: TopologyViewProps) {
 
       <Panel style={{ padding: "14px 16px" }}>
         <SectionHeader>结构差异</SectionHeader>
-        {STRUCTURE_DIFFS.map((item) => {
+        {data.diffs.map((item) => {
           const tone = getSeverityTone(item.sev);
           const color = tone === "danger" ? C.err : tone === "warning" ? C.warn : C.acc;
           const background = tone === "danger" ? C.errD : tone === "warning" ? C.warnD : C.accD;

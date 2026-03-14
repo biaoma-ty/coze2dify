@@ -1,12 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { C } from "../theme";
-import {
-  NODE_COMPARISONS,
-  PLUGIN_COMPATIBILITY,
-  PROMPT_DIFF,
-  VARIABLE_MAPPINGS,
-} from "../mockData";
-import type { WorkflowSummary } from "../types";
+import type { EquivalenceData, WorkflowSummary } from "../types";
 import { getSeverityTone } from "../utils";
 import Panel from "../components/Panel";
 import SectionHeader from "../components/SectionHeader";
@@ -18,13 +12,17 @@ type EquivalenceTab = "nodes" | "prompt" | "vars" | "plugins";
 
 interface EquivalenceViewProps {
   workflow: WorkflowSummary;
+  data: EquivalenceData;
 }
 
-export default function EquivalenceView({ workflow }: EquivalenceViewProps) {
+export default function EquivalenceView({ workflow, data }: EquivalenceViewProps) {
   const [tab, setTab] = useState<EquivalenceTab>("nodes");
-  const [selectedId, setSelectedId] = useState(NODE_COMPARISONS[0]?.id ?? "");
-  const selectedNode =
-    NODE_COMPARISONS.find((node) => node.id === selectedId) ?? NODE_COMPARISONS[0];
+  const [selectedId, setSelectedId] = useState(data.nodes[0]?.id ?? "");
+  const selectedNode = data.nodes.find((node) => node.id === selectedId) ?? data.nodes[0];
+
+  useEffect(() => {
+    setSelectedId(data.nodes[0]?.id ?? "");
+  }, [data.nodes]);
 
   return (
     <div>
@@ -46,7 +44,7 @@ export default function EquivalenceView({ workflow }: EquivalenceViewProps) {
         {tab === "nodes" && (
           <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12 }}>
             <Panel style={{ padding: 6 }}>
-              {NODE_COMPARISONS.map((node) => {
+              {data.nodes.map((node) => {
                 const color =
                   node.status === "equivalent"
                     ? C.ok
@@ -203,14 +201,16 @@ export default function EquivalenceView({ workflow }: EquivalenceViewProps) {
                 borderBottom: `1px solid ${C.bd}`,
               }}
             >
-              <StatusBadge tone="warning">{PROMPT_DIFF.flags.length} 变更</StatusBadge>
-              <StatusBadge tone="success">相似度 88%</StatusBadge>
+              <StatusBadge tone="warning">{data.prompt.flags.length} 变更</StatusBadge>
+              <StatusBadge tone="success">
+                相似度 {(data.promptSimilarity * 100).toFixed(0)}%
+              </StatusBadge>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
               {[
-                { label: "Coze", lines: PROMPT_DIFF.coze, color: C.coze },
-                { label: "Dify", lines: PROMPT_DIFF.dify, color: C.dify },
+                { label: "Coze", lines: data.prompt.coze, color: C.coze },
+                { label: "Dify", lines: data.prompt.dify, color: C.dify },
               ].map((side) => (
                 <div
                   key={side.label}
@@ -281,7 +281,7 @@ export default function EquivalenceView({ workflow }: EquivalenceViewProps) {
 
             <div style={{ padding: "14px 16px", borderTop: `1px solid ${C.bd}` }}>
               <SectionHeader>AI 标记的关键变更</SectionHeader>
-              {PROMPT_DIFF.flags.map((flag) => {
+              {data.prompt.flags.map((flag) => {
                 const tone = getSeverityTone(flag.sev);
                 const background =
                   tone === "danger" ? C.errD : tone === "warning" ? C.warnD : C.accD;
@@ -318,10 +318,10 @@ export default function EquivalenceView({ workflow }: EquivalenceViewProps) {
           <Panel style={{ padding: "16px 18px" }}>
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
               <StatusBadge tone="success">
-                已映射 {VARIABLE_MAPPINGS.filter((item) => item.status === "mapped").length}
+                已映射 {data.variables.filter((item) => item.status === "mapped").length}
               </StatusBadge>
               <StatusBadge tone="danger">
-                未映射 {VARIABLE_MAPPINGS.filter((item) => item.status === "unmapped").length}
+                未映射 {data.variables.filter((item) => item.status === "unmapped").length}
               </StatusBadge>
             </div>
 
@@ -345,7 +345,7 @@ export default function EquivalenceView({ workflow }: EquivalenceViewProps) {
                 </tr>
               </thead>
               <tbody>
-                {VARIABLE_MAPPINGS.map((mapping, index) => (
+                {data.variables.map((mapping, index) => (
                   <tr key={`${mapping.coze}-${index}`} style={{ borderBottom: `1px solid ${C.bd}` }}>
                     <td
                       style={{
@@ -414,7 +414,7 @@ export default function EquivalenceView({ workflow }: EquivalenceViewProps) {
                 </tr>
               </thead>
               <tbody>
-                {PLUGIN_COMPATIBILITY.map((plugin, index) => {
+                {data.plugins.map((plugin, index) => {
                   const tone =
                     plugin.compat === "full"
                       ? "success"

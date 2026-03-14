@@ -3,6 +3,8 @@
    Aesthetic: Precision Engineering Dashboard
    ═══════════════════════════════════════════════════ */
 
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 :root {
   /* ── Core Palette ── */
   --c-void: #0a0e17;
@@ -66,8 +68,6 @@
 /* ── Reset & Base ── */
 *, *::before, *::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 html {
@@ -77,6 +77,7 @@ html {
 }
 
 body {
+  margin: 0;
   font-family: var(--font-body);
   background: var(--c-void);
   color: var(--c-text-primary);
@@ -101,6 +102,7 @@ body::before {
 #root {
   position: relative;
   z-index: 1;
+  min-height: 100vh;
 }
 
 /* ── Scrollbar ── */
@@ -237,6 +239,169 @@ body::before {
 .input:focus {
   border-color: var(--c-accent);
   box-shadow: 0 0 0 3px var(--c-accent-dim);
+}
+
+/* ══════════════════════════════════════════
+   ANT DESIGN PRO SHELL
+   ══════════════════════════════════════════ */
+.ant-pro-layout {
+  min-height: 100vh;
+  background: transparent !important;
+}
+
+.ant-pro-basicLayout,
+.ant-pro-basicLayout-content,
+.ant-layout {
+  background: transparent !important;
+}
+
+.ant-pro-global-header,
+.ant-pro-sider {
+  background: rgba(15, 20, 32, 0.9) !important;
+  border-color: var(--c-border-subtle) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.ant-pro-global-header {
+  box-shadow: none !important;
+}
+
+.ant-pro-sider-logo {
+  padding-inline: 20px !important;
+  border-bottom: 1px solid var(--c-border-subtle) !important;
+}
+
+.ant-pro-sider .ant-menu {
+  background: transparent !important;
+  color: var(--c-text-secondary) !important;
+}
+
+.ant-pro-sider .ant-menu-inline {
+  border-inline-end: none !important;
+}
+
+.ant-pro-sider .ant-menu-item,
+.ant-pro-sider .ant-menu-submenu-title {
+  margin-inline: 12px !important;
+  width: calc(100% - 24px) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.ant-pro-sider .ant-menu-item-selected {
+  background: var(--c-accent-dim) !important;
+}
+
+.ant-pro-sider .ant-menu-item-selected,
+.ant-pro-sider .ant-menu-item:hover,
+.ant-pro-sider .ant-menu-submenu-title:hover,
+.ant-pro-sider .ant-menu-item-selected .anticon,
+.ant-pro-sider .ant-menu-item-selected a {
+  color: var(--c-accent) !important;
+}
+
+.app-shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.app-shell__brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #00d4aa, #0891b2);
+  color: var(--c-void);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.app-shell__brand-name {
+  color: var(--c-text-primary);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.app-shell__brand-name span {
+  color: var(--c-accent);
+}
+
+.app-shell__lang-switch.ant-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--c-border-subtle);
+  border-radius: 100px;
+  background: var(--c-surface-2);
+  color: var(--c-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.app-shell__lang-switch.ant-btn:hover,
+.app-shell__lang-switch.ant-btn:focus {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  background: var(--c-surface-2);
+}
+
+.app-shell__dev-tag.ant-tag,
+.app-shell__version-tag.ant-tag {
+  margin-inline-end: 0;
+  border-radius: 100px;
+  border: 1px solid var(--c-border-subtle);
+  font-family: var(--font-mono);
+}
+
+.app-shell__version-tag.ant-tag {
+  background: var(--c-surface-2);
+  color: var(--c-text-tertiary);
+}
+
+.app-shell__content {
+  padding: 32px 24px 40px;
+}
+
+.app-shell__content-inner {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.page-container-pro.ant-pro-page-container {
+  background: transparent !important;
+}
+
+.page-container-pro .ant-pro-page-container-warp {
+  padding: 0 0 24px !important;
+  background: transparent !important;
+}
+
+.page-container-pro .ant-page-header {
+  padding: 0 !important;
+}
+
+.page-container-pro .ant-page-header-heading-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--c-text-primary);
+}
+
+.page-container-pro .ant-page-header-heading-extra {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 .input-mono {
   font-family: var(--font-mono);
