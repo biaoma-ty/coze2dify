@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/biaoma-ty/coze2dify#readme
+    about: Read the README and linked docs before opening a new issue.
+  - name: Contributing Guide
+    url: https://github.com/biaoma-ty/coze2dify/blob/main/CONTRIBUTING.md
+    about: Review local setup, CI expectations, and contribution workflow.

@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose a new capability or an improvement to an existing flow
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please focus on the user problem and the migration workflow impact, not just the implementation idea.
+  - type: input
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user or migration problem are you trying to solve?
+      placeholder: As a user, I need ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: Describe the behavior, UI flow, or API capability you want.
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Migration use case
+      description: Explain how this helps Coze to Dify migration, sync, or review workflows.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Describe current workarounds or other options you considered.
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Expected impact
+      options:
+        - Small quality-of-life improvement
+        - Improves migration correctness
+        - Improves review or observability
+        - Unlocks a new workflow or integration
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked the roadmap, README, and existing issues for overlap.
+          required: true

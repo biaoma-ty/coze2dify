@@ -1,0 +1,83 @@
+name: Bug report
+description: Report a defect, regression, or incorrect migration result
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please include concrete repro steps and redact secrets before posting logs or workflow files.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project is affected?
+      options:
+        - Backend conversion
+        - Frontend UI
+        - Direct write to Dify
+        - Sync
+        - Dev mode
+        - Docs
+        - CI or tooling
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+      placeholder: Describe the observed problem.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run ...
+        2. Upload ...
+        3. Click ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: Describe what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error messages, wrong DSL output, or screenshots.
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Reproduction input
+      description: Paste a minimal Coze workflow snippet or attach a sanitized sample file.
+      placeholder: Provide the smallest reproducible workflow input.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        - OS:
+        - Python:
+        - Node.js:
+        - Browser:
+        - Commit or branch:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues before opening this report.
+          required: true
+        - label: I removed secrets, tokens, and private data from the report.
+          required: true
