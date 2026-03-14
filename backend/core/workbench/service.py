@@ -5,6 +5,10 @@ from datetime import datetime
 from threading import Lock
 from typing import Any
 
+from sqlalchemy.orm import Session
+
+from db.models import MigrationTask
+
 from .data import (
     EQUIVALENCE,
     ERROR_PATTERNS,
@@ -32,7 +36,16 @@ class WorkbenchService:
             self._release_state: dict[str, dict[str, Any]] = {}
             self._sandbox_state: dict[str, dict[str, Any]] = {}
 
-    def get_overview(self, *, limit: int = 50) -> dict[str, Any]:
+    def get_overview(self, db: Session | None = None, *, limit: int = 50) -> dict[str, Any]:
+        if db is not None:
+            workflows = self._load_persisted_overview(db, limit=limit)
+            if workflows:
+                pending_reviews = sum(1 for workflow in workflows if workflow.get("requiresManualReview"))
+                return {
+                    "summary": self._build_summary(workflows, pending_reviews=pending_reviews),
+                    "workflows": workflows,
+                }
+
         workflows = deepcopy(self._workflows[:limit])
         return {
             "summary": self._build_summary(workflows),
@@ -131,7 +144,10 @@ class WorkbenchService:
             if target is None:
                 raise LookupError("No rollback version available")
 
-            current_active = next((item["ver"] for item in state["versions"] if item["st"] == "active"), None)
+            current_active = next(
+                (item["ver"] for item in state["versions"] if item["st"] == "active"),
+                None,
+            )
             matched = False
             for item in state["versions"]:
                 if item["ver"] == target:
@@ -221,12 +237,75 @@ class WorkbenchService:
             )
             return self._serialize_sandbox(state)
 
-    def _build_summary(self, workflows: list[dict[str, Any]]) -> dict[str, Any]:
+    def _load_persisted_overview(self, db: Session, *, limit: int) -> list[dict[str, Any]]:
+        tasks = (
+            db.query(MigrationTask)
+            .filter(MigrationTask.sync_config_id.is_(None))
+            .order_by(
+                MigrationTask.completed_at.desc(),
+                MigrationTask.created_at.desc(),
+                MigrationTask.id.desc(),
+            )
+            .limit(limit)
+            .all()
+        )
+        return [self._serialize_task(task) for task in tasks]
+
+    def _serialize_task(self, task: MigrationTask) -> dict[str, Any]:
+        report = task.report or {}
+        snapshot = task.ir_snapshot or {}
+        write_result = snapshot.get("write_result") if isinstance(snapshot, dict) else None
+        if not isinstance(write_result, dict):
+            write_result = {}
+
+        nodes = int(report.get("total_nodes") or 0)
+        mapped = int(report.get("mapped_count") or 0)
+        partial = int(report.get("partial_count") or 0)
+        skipped = int(report.get("skipped_count") or 0)
+        migrated = mapped + partial
+        failed = max(nodes - migrated - skipped, 0)
+        score = 0.0
+        if nodes > 0:
+            score = round(((mapped + (partial * 0.5)) / nodes) * 100, 1)
+
+        source_workflow_id = _coerce_optional_string(task.source_workflow_id) or str(task.id)
+        return {
+            "id": source_workflow_id,
+            "conversionId": str(task.id),
+            "name": str(report.get("workflow_name") or task.source_workflow_name or task.source_workflow_id or task.id),
+            "cozeId": source_workflow_id,
+            "difyId": _coerce_optional_string(write_result.get("app_id")),
+            "status": self._derive_status(
+                task_status=task.status,
+                supported=bool(report.get("supported", False)),
+                requires_manual_review=bool(report.get("requires_manual_review", False)),
+                write_status=str(write_result.get("status") or ""),
+            ),
+            "nodes": nodes,
+            "migrated": migrated,
+            "failed": failed,
+            "score": score,
+            "complexity": self._derive_complexity(nodes),
+            "lastSync": task.completed_at.isoformat() if task.completed_at else None,
+            "sourceType": task.source_type,
+            "requiresManualReview": bool(report.get("requires_manual_review", False)),
+        }
+
+    def _build_summary(
+        self,
+        workflows: list[dict[str, Any]],
+        *,
+        pending_reviews: int | None = None,
+    ) -> dict[str, Any]:
         scored = [workflow["score"] for workflow in workflows if workflow["score"] > 0]
         total_nodes = sum(workflow["nodes"] for workflow in workflows)
         migrated_nodes = sum(workflow["migrated"] for workflow in workflows)
         failed_nodes = sum(workflow["failed"] for workflow in workflows)
         average_score = round(sum(scored) / len(scored), 1) if scored else 0.0
+
+        if pending_reviews is None:
+            pending_reviews = sum(1 for item in self._review_queue if item["verdict"] is None)
+
         return {
             "totalWorkflows": len(workflows),
             "verifiedWorkflows": sum(1 for workflow in workflows if workflow["status"] == "verified"),
@@ -234,7 +313,7 @@ class WorkbenchService:
             "totalNodes": total_nodes,
             "migratedNodes": migrated_nodes,
             "failedNodes": failed_nodes,
-            "pendingReviews": sum(1 for item in self._review_queue if item["verdict"] is None),
+            "pendingReviews": pending_reviews,
         }
 
     def _build_error_patterns(self) -> list[dict[str, Any]]:
@@ -337,6 +416,40 @@ class WorkbenchService:
         total = sum(ord(char) for char in text)
         return 800 + (total % 1201), 600 + (total % 1001)
 
-    def _require_workflow(self, workflow_id: str) -> None:
-        if not any(item["id"] == workflow_id for item in self._workflows):
-            raise LookupError(f"Unknown workflow: {workflow_id}")
+    @staticmethod
+    def _derive_status(
+        *,
+        task_status: str,
+        supported: bool,
+        requires_manual_review: bool,
+        write_status: str,
+    ) -> str:
+        if task_status in {"failed", "blocked", "write_failed"} or not supported:
+            return "failed"
+        if write_status == "succeeded" and task_status in {"written", "updated"}:
+            return "verified"
+        if task_status in {"pending", "running"}:
+            return "pending"
+        if requires_manual_review:
+            return "testing"
+        return "migrated"
+
+    @staticmethod
+    def _derive_complexity(nodes: int) -> str:
+        if nodes >= 12:
+            return "high"
+        if nodes >= 7:
+            return "medium"
+        return "low"
+
+    @staticmethod
+    def _require_workflow(workflow_id: str) -> None:
+        if not workflow_id.strip():
+            raise LookupError("Unknown workflow: <empty>")
+
+
+def _coerce_optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    value_str = str(value).strip()
+    return value_str or None

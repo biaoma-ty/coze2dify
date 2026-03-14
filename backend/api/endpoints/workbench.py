@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from core.workbench.service import WorkbenchService
+from db.database import get_db
 
 router = APIRouter()
 service = WorkbenchService()
@@ -28,8 +30,11 @@ class SandboxMessageRequest(BaseModel):
 
 
 @router.get("/overview")
-async def get_workbench_overview(limit: int = Query(default=50, ge=1, le=200)):
-    return service.get_overview(limit=limit)
+async def get_workbench_overview(
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    return service.get_overview(db, limit=limit)
 
 
 @router.post("/batch-migrate")
