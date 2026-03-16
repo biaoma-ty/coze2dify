@@ -95,16 +95,14 @@ class DifyGenerator:
         for ir_node in normalized_workflow.nodes:
             all_edges.extend(self._build_composite_edges(ir_node, edge_builder))
         emitted_node_ids = {node.id for node in dify_nodes}
-        all_edges = [
-            edge for edge in all_edges if edge.source in emitted_node_ids and edge.target in emitted_node_ids
-        ]
+        all_edges = [edge for edge in all_edges if edge.source in emitted_node_ids and edge.target in emitted_node_ids]
 
         graph = DifyGraph(nodes=dify_nodes, edges=all_edges)
         workflow = DifyWorkflow(graph=graph)
 
         return DifyDSL(
             app={
-                "mode": ir_workflow.mode,
+                "mode": self._to_dify_app_mode(ir_workflow.mode),
                 "name": ir_workflow.name or "Migrated Workflow",
                 "description": ir_workflow.description or "Migrated from Coze",
                 "icon": "🤖",
@@ -586,3 +584,7 @@ class DifyGenerator:
     @staticmethod
     def _is_loop_node(ir_node: IRNode) -> bool:
         return ir_node.node_type in (IRNodeType.LOOP_COUNTED, IRNodeType.LOOP_INFINITE)
+
+    @staticmethod
+    def _to_dify_app_mode(mode: str) -> str:
+        return "advanced-chat" if mode == "chatflow" else "workflow"

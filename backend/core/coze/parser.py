@@ -148,7 +148,14 @@ class CozeParser:
             if not coze_node.blocks:
                 edges.extend(self._collect_edges(coze_node.edges))
 
-        return IRWorkflow(nodes=nodes, edges=self._dedupe_edges(edges))
+        return IRWorkflow(
+            id=canvas.id,
+            name=canvas.name,
+            description=canvas.description,
+            mode=self._coerce_mode(canvas.mode),
+            nodes=nodes,
+            edges=self._dedupe_edges(edges),
+        )
 
     def _parse_node(self, coze_node: CozeNode) -> IRNode:
         node_type = COZE_TYPE_MAP.get(coze_node.type, IRNodeType.UNKNOWN)
@@ -287,3 +294,10 @@ class CozeParser:
             seen.add(key)
             unique.append(edge)
         return unique
+
+    @staticmethod
+    def _coerce_mode(mode: str | None) -> str:
+        normalized = str(mode or "").strip().lower()
+        if normalized in {"chatflow", "advanced-chat", "chat"}:
+            return "chatflow"
+        return "workflow"

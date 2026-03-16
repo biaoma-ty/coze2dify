@@ -463,25 +463,30 @@ class ConversionService:
 
     @classmethod
     def _extract_canvas(cls, payload: Any) -> dict[str, Any]:
-        candidates: list[Any] = [payload]
+        candidates: list[tuple[Any, list[Any]]] = [(payload, [payload])]
         if isinstance(payload, dict):
+            data_payload = payload.get("data")
+            workflow_payload = payload.get("workflow")
             candidates.extend(
                 [
-                    payload.get("data"),
-                    payload.get("workflow"),
-                    payload.get("data", {}).get("workflow") if isinstance(payload.get("data"), dict) else None,
+                    (data_payload, [data_payload, payload]),
+                    (workflow_payload, [workflow_payload, payload]),
+                    (
+                        data_payload.get("workflow") if isinstance(data_payload, dict) else None,
+                        [data_payload.get("workflow"), data_payload, payload] if isinstance(data_payload, dict) else [],
+                    ),
                 ]
             )
 
-        for candidate in candidates:
-            canvas = cls._coerce_canvas(candidate)
+        for candidate, metadata_sources in candidates:
+            canvas = cls._coerce_canvas(candidate, metadata_sources=metadata_sources)
             if canvas is not None:
                 return canvas
 
         raise ValueError("Unsupported Coze workflow payload shape")
 
     @classmethod
-    def _coerce_canvas(cls, payload: Any) -> dict[str, Any] | None:
+    def _coerce_canvas(cls, payload: Any, *, metadata_sources: list[Any] | None = None) -> dict[str, Any] | None:
         if isinstance(payload, str):
             try:
                 payload = json.loads(payload)
@@ -492,18 +497,32 @@ class ConversionService:
             return None
 
         if "nodes" in payload and "edges" in payload:
-            return payload
+            return cls._merge_canvas_metadata(payload, metadata_sources or [payload])
 
         for key in ("canvas", "schema_json"):
             value = payload.get(key)
             if isinstance(value, dict) and "nodes" in value and "edges" in value:
-                return value
+                return cls._merge_canvas_metadata(value, metadata_sources or [payload, value])
             if isinstance(value, str):
                 try:
                     decoded = json.loads(value)
                 except json.JSONDecodeError:
                     continue
                 if isinstance(decoded, dict) and "nodes" in decoded and "edges" in decoded:
-                    return decoded
+                    return cls._merge_canvas_metadata(decoded, metadata_sources or [payload, decoded])
 
         return None
+
+    @staticmethod
+    def _merge_canvas_metadata(canvas: dict[str, Any], sources: list[Any]) -> dict[str, Any]:
+        merged = dict(canvas)
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            for key in ("id", "name", "description", "mode"):
+                value = source.get(key)
+                if value in (None, ""):
+                    continue
+                if merged.get(key) in (None, ""):
+                    merged[key] = value
+        return merged
