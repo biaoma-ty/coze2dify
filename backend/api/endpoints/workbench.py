@@ -38,86 +38,95 @@ async def get_workbench_overview(
 
 
 @router.post("/batch-migrate")
-async def batch_migrate_workflows():
-    return service.batch_migrate()
+async def batch_migrate_workflows(db: Session = Depends(get_db)):
+    return service.batch_migrate(db)
 
 
 @router.get("/workflows/{workflow_id}/topology")
-async def get_workflow_topology(workflow_id: str):
+async def get_workflow_topology(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.get_topology(workflow_id)
+        return service.get_topology(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/workflows/{workflow_id}/equivalence")
-async def get_workflow_equivalence(workflow_id: str):
+async def get_workflow_equivalence(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.get_equivalence(workflow_id)
+        return service.get_equivalence(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/workflows/{workflow_id}/tests")
-async def get_workflow_tests(workflow_id: str):
+async def get_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.get_tests(workflow_id)
+        return service.get_tests(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/workflows/{workflow_id}/tests/generate")
-async def generate_workflow_tests(workflow_id: str):
+async def generate_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.generate_tests(workflow_id)
+        return service.generate_tests(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/workflows/{workflow_id}/tests/run")
-async def run_workflow_tests(workflow_id: str):
+async def run_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.run_tests(workflow_id)
+        return service.run_tests(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/workflows/{workflow_id}/knowledge")
-async def get_workflow_knowledge(workflow_id: str):
+async def get_workflow_knowledge(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.get_knowledge(workflow_id)
+        return service.get_knowledge(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/workflows/{workflow_id}/review")
-async def get_workflow_review(workflow_id: str):
+async def get_workflow_review(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.get_review_queue(workflow_id)
+        return service.get_review_queue(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/workflows/{workflow_id}/review/{review_id}")
-async def update_review_verdict(workflow_id: str, review_id: str, req: ReviewVerdictRequest):
+async def update_review_verdict(
+    workflow_id: str,
+    review_id: str,
+    req: ReviewVerdictRequest,
+    db: Session = Depends(get_db),
+):
     try:
-        return service.update_review_verdict(workflow_id, review_id, req.verdict)
+        return service.update_review_verdict(workflow_id, review_id, req.verdict, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/workflows/{workflow_id}/release")
-async def get_workflow_release(workflow_id: str):
+async def get_workflow_release(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.get_release(workflow_id)
+        return service.get_release(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/workflows/{workflow_id}/release/traffic")
-async def update_workflow_traffic(workflow_id: str, req: TrafficRequest):
+async def update_workflow_traffic(
+    workflow_id: str,
+    req: TrafficRequest,
+    db: Session = Depends(get_db),
+):
     try:
-        return service.update_traffic(workflow_id, req.traffic)
+        return service.update_traffic(workflow_id, req.traffic, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -125,41 +134,49 @@ async def update_workflow_traffic(workflow_id: str, req: TrafficRequest):
 
 
 @router.post("/workflows/{workflow_id}/release/rollback")
-async def rollback_workflow_release(workflow_id: str, req: RollbackRequest):
+async def rollback_workflow_release(
+    workflow_id: str,
+    req: RollbackRequest,
+    db: Session = Depends(get_db),
+):
     try:
-        return service.rollback_release(workflow_id, req.version)
+        return service.rollback_release(workflow_id, req.version, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/workflows/{workflow_id}/sandbox")
-async def get_workflow_sandbox(workflow_id: str):
+async def get_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.get_sandbox(workflow_id)
+        return service.get_sandbox(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/workflows/{workflow_id}/sandbox/start")
-async def start_workflow_sandbox(workflow_id: str):
+async def start_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.start_sandbox(workflow_id)
+        return service.start_sandbox(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/workflows/{workflow_id}/sandbox/stop")
-async def stop_workflow_sandbox(workflow_id: str):
+async def stop_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
     try:
-        return service.stop_sandbox(workflow_id)
+        return service.stop_sandbox(workflow_id, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/workflows/{workflow_id}/sandbox/messages")
-async def send_workflow_sandbox_message(workflow_id: str, req: SandboxMessageRequest):
+async def send_workflow_sandbox_message(
+    workflow_id: str,
+    req: SandboxMessageRequest,
+    db: Session = Depends(get_db),
+):
     try:
-        return service.send_sandbox_message(workflow_id, req.text)
+        return service.send_sandbox_message(workflow_id, req.text, db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

@@ -31,100 +31,112 @@ class WorkbenchService:
     def reset(self) -> None:
         with self._lock:
             self._workflows = deepcopy(WORKFLOWS)
+            self._workflow_overrides: dict[str, dict[str, Any]] = {}
             self._test_cases = deepcopy(TEST_CASES)
             self._review_queue = deepcopy(REVIEW_QUEUE)
             self._release_state: dict[str, dict[str, Any]] = {}
             self._sandbox_state: dict[str, dict[str, Any]] = {}
 
     def get_overview(self, db: Session | None = None, *, limit: int = 50) -> dict[str, Any]:
-        if db is not None:
-            workflows = self._load_persisted_overview(db, limit=limit)
-            if workflows:
-                pending_reviews = sum(1 for workflow in workflows if workflow.get("requiresManualReview"))
-                return {
-                    "summary": self._build_summary(workflows, pending_reviews=pending_reviews),
-                    "workflows": workflows,
-                }
+        workflows = self._get_visible_workflows(db, limit=limit)
+        if db is not None and self._has_persisted_overview(db):
+            pending_reviews = sum(1 for workflow in workflows if workflow.get("requiresManualReview"))
+            return {
+                "summary": self._build_summary(workflows, pending_reviews=pending_reviews),
+                "workflows": workflows,
+            }
 
-        workflows = deepcopy(self._workflows[:limit])
         return {
             "summary": self._build_summary(workflows),
             "workflows": workflows,
         }
 
-    def batch_migrate(self) -> dict[str, Any]:
+    def batch_migrate(self, db: Session | None = None, *, limit: int = 50) -> dict[str, Any]:
         with self._lock:
-            for workflow in self._workflows:
-                if workflow["status"] == "pending":
-                    workflow["status"] = "testing"
-                    workflow["difyId"] = f"app-auto-{workflow['cozeId'].split('_')[-1]}"
-                    workflow["migrated"] = workflow["nodes"]
-                    workflow["failed"] = 0
-                    workflow["score"] = 96.4
-                    workflow["lastSync"] = "2026-03-13"
-            return self.get_overview()
+            if db is not None and self._has_persisted_overview(db):
+                for workflow in self._load_persisted_overview(db, limit=limit):
+                    if workflow["status"] == "pending":
+                        self._workflow_overrides[workflow["id"]] = self._build_batch_migrate_patch(workflow)
+            else:
+                for workflow in self._workflows:
+                    if workflow["status"] == "pending":
+                        workflow.update(self._build_batch_migrate_patch(workflow))
+        return self.get_overview(db, limit=limit)
 
-    def get_topology(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def get_topology(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         return deepcopy(TOPOLOGY)
 
-    def get_equivalence(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def get_equivalence(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         return deepcopy(EQUIVALENCE)
 
-    def get_tests(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def get_tests(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         return {
             "cases": deepcopy(self._test_cases),
             "patterns": self._build_error_patterns(),
         }
 
-    def generate_tests(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def generate_tests(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         with self._lock:
             exists = any(item["id"] == GENERATED_TEST_CASE["id"] for item in self._test_cases)
             if not exists:
                 self._test_cases.append(deepcopy(GENERATED_TEST_CASE))
-        payload = self.get_tests(workflow_id)
+        payload = self.get_tests(workflow_id, db)
         payload["generated"] = 0 if exists else 1
         return payload
 
-    def run_tests(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
-        payload = self.get_tests(workflow_id)
+    def run_tests(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
+        payload = self.get_tests(workflow_id, db)
         payload["executed"] = len(payload["cases"])
         payload["lastRunAt"] = "2026-03-13T00:00:00"
         return payload
 
-    def get_knowledge(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def get_knowledge(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         return {"records": deepcopy(KNOWLEDGE_BASES)}
 
-    def get_review_queue(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def get_review_queue(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         return {"items": deepcopy(self._review_queue)}
 
-    def update_review_verdict(self, workflow_id: str, review_id: str, verdict: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def update_review_verdict(
+        self,
+        workflow_id: str,
+        review_id: str,
+        verdict: str,
+        db: Session | None = None,
+    ) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         with self._lock:
             review = next((item for item in self._review_queue if item["id"] == review_id), None)
             if review is None:
                 raise LookupError(f"Unknown review item: {review_id}")
             review["verdict"] = verdict
-            return {
-                "item": deepcopy(review),
-                "items": deepcopy(self._review_queue),
-                "summary": self._build_summary(self._workflows),
-            }
+            item = deepcopy(review)
+            items = deepcopy(self._review_queue)
+        return {
+            "item": item,
+            "items": items,
+            "summary": self.get_overview(db)["summary"],
+        }
 
-    def get_release(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def get_release(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         with self._lock:
             state = self._release_state.setdefault(workflow_id, deepcopy(RELEASE_STATE))
             return deepcopy(state)
 
-    def update_traffic(self, workflow_id: str, traffic: int) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def update_traffic(
+        self,
+        workflow_id: str,
+        traffic: int,
+        db: Session | None = None,
+    ) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         if traffic < 0 or traffic > 100:
             raise ValueError("Traffic must be between 0 and 100")
         with self._lock:
@@ -133,8 +145,13 @@ class WorkbenchService:
             state["stages"] = self._build_stages(traffic)
             return deepcopy(state)
 
-    def rollback_release(self, workflow_id: str, version: str | None = None) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def rollback_release(
+        self,
+        workflow_id: str,
+        version: str | None = None,
+        db: Session | None = None,
+    ) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         with self._lock:
             state = self._release_state.setdefault(workflow_id, deepcopy(RELEASE_STATE))
             target = version or next(
@@ -165,8 +182,8 @@ class WorkbenchService:
             state["stages"] = self._build_stages(20)
             return deepcopy(state)
 
-    def get_sandbox(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def get_sandbox(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         with self._lock:
             state = self._sandbox_state.setdefault(
                 workflow_id,
@@ -179,8 +196,8 @@ class WorkbenchService:
             )
             return self._serialize_sandbox(state)
 
-    def start_sandbox(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def start_sandbox(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         with self._lock:
             state = self._sandbox_state.setdefault(
                 workflow_id,
@@ -189,8 +206,8 @@ class WorkbenchService:
             state["status"] = "running"
             return self._serialize_sandbox(state)
 
-    def stop_sandbox(self, workflow_id: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def stop_sandbox(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         with self._lock:
             state = self._sandbox_state.setdefault(
                 workflow_id,
@@ -202,8 +219,13 @@ class WorkbenchService:
             state["counter"] = 0
             return self._serialize_sandbox(state)
 
-    def send_sandbox_message(self, workflow_id: str, text: str) -> dict[str, Any]:
-        self._require_workflow(workflow_id)
+    def send_sandbox_message(
+        self,
+        workflow_id: str,
+        text: str,
+        db: Session | None = None,
+    ) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
         cleaned = text.strip()
         if not cleaned:
             raise ValueError("Message text is required")
@@ -236,6 +258,17 @@ class WorkbenchService:
                 )
             )
             return self._serialize_sandbox(state)
+
+    def _get_visible_workflows(
+        self,
+        db: Session | None = None,
+        *,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        if db is not None and self._has_persisted_overview(db):
+            workflows = self._load_persisted_overview(db, limit=limit)
+            return self._apply_workflow_overrides(workflows)
+        return deepcopy(self._workflows[:limit])
 
     def _load_persisted_overview(self, db: Session, *, limit: int) -> list[dict[str, Any]]:
         tasks = (
@@ -416,6 +449,44 @@ class WorkbenchService:
         total = sum(ord(char) for char in text)
         return 800 + (total % 1201), 600 + (total % 1001)
 
+    def _has_persisted_overview(self, db: Session) -> bool:
+        return db.query(MigrationTask.id).filter(MigrationTask.sync_config_id.is_(None)).first() is not None
+
+    def _find_persisted_task(self, db: Session, workflow_id: str) -> MigrationTask | None:
+        task = (
+            db.query(MigrationTask)
+            .filter(MigrationTask.sync_config_id.is_(None))
+            .filter(MigrationTask.source_workflow_id == workflow_id)
+            .order_by(MigrationTask.id.desc())
+            .first()
+        )
+        if task is not None or not workflow_id.isdigit():
+            return task
+        return (
+            db.query(MigrationTask)
+            .filter(MigrationTask.sync_config_id.is_(None))
+            .filter(MigrationTask.id == int(workflow_id))
+            .first()
+        )
+
+    def _apply_workflow_overrides(self, workflows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for workflow in workflows:
+            override = self._workflow_overrides.get(workflow["id"])
+            result.append({**workflow, **override} if override else workflow)
+        return result
+
+    @staticmethod
+    def _build_batch_migrate_patch(workflow: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "status": "testing",
+            "difyId": workflow.get("difyId") or f"app-auto-{str(workflow['cozeId']).split('_')[-1]}",
+            "migrated": workflow["nodes"],
+            "failed": 0,
+            "score": 96.4,
+            "lastSync": "2026-03-13",
+        }
+
     @staticmethod
     def _derive_status(
         *,
@@ -442,10 +513,16 @@ class WorkbenchService:
             return "medium"
         return "low"
 
-    @staticmethod
-    def _require_workflow(workflow_id: str) -> None:
-        if not workflow_id.strip():
+    def _require_workflow(self, workflow_id: str, db: Session | None = None) -> None:
+        cleaned = workflow_id.strip()
+        if not cleaned:
             raise LookupError("Unknown workflow: <empty>")
+        if db is not None and self._has_persisted_overview(db):
+            if self._find_persisted_task(db, cleaned) is None:
+                raise LookupError(f"Unknown workflow: {cleaned}")
+            return
+        if not any(workflow["id"] == cleaned for workflow in self._workflows):
+            raise LookupError(f"Unknown workflow: {cleaned}")
 
 
 def _coerce_optional_string(value: Any) -> str | None:

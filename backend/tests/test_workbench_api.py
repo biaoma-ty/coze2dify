@@ -192,6 +192,51 @@ def test_workbench_mock_overview_and_batch_migrate_flow(tmp_path) -> None:
     assert migrated_payload["workflows"][2]["score"] == 96.4
 
 
+def test_workbench_batch_migrate_preserves_persisted_overview(tmp_path) -> None:
+    session_factory = _make_session_factory(tmp_path)
+    with session_factory() as db:
+        _seed_overview_history(db)
+        db.add(
+            MigrationTask(
+                source_type="upload",
+                source_workflow_id="wf-pending",
+                source_workflow_name="Pending Flow",
+                status="pending",
+                ir_snapshot={},
+                report={
+                    "workflow_name": "Pending Flow",
+                    "supported": True,
+                    "requires_manual_review": False,
+                    "total_nodes": 5,
+                    "mapped_count": 0,
+                    "partial_count": 0,
+                    "skipped_count": 0,
+                },
+                completed_at=datetime(2026, 3, 13, 8, 0, 0),
+            )
+        )
+        db.commit()
+
+    client = _make_client(session_factory)
+
+    migrated = client.post("/api/v1/workbench/batch-migrate")
+    assert migrated.status_code == 200
+    migrated_payload = migrated.json()
+    assert all(workflow["id"] != "wf1" for workflow in migrated_payload["workflows"])
+
+    pending = next(workflow for workflow in migrated_payload["workflows"] if workflow["id"] == "wf-pending")
+    assert pending["status"] == "testing"
+    assert pending["difyId"] == "app-auto-wf-pending"
+    assert pending["migrated"] == 5
+    assert pending["failed"] == 0
+    assert pending["score"] == 96.4
+
+    refreshed = client.get("/api/v1/workbench/overview?limit=10")
+    assert refreshed.status_code == 200
+    refreshed_pending = next(workflow for workflow in refreshed.json()["workflows"] if workflow["id"] == "wf-pending")
+    assert refreshed_pending["status"] == "testing"
+
+
 def test_workbench_analysis_endpoints_return_expected_payloads(tmp_path) -> None:
     client = _make_client(_make_session_factory(tmp_path))
 
@@ -281,3 +326,39 @@ def test_workbench_tests_review_release_and_sandbox_mutations(tmp_path) -> None:
     assert stop.status_code == 200
     assert stop.json()["status"] == "idle"
     assert stop.json()["messages"] == []
+
+    unknown = client.post("/api/v1/workbench/workflows/not-real/sandbox/start")
+    assert unknown.status_code == 404
+    assert unknown.json()["detail"] == "Unknown workflow: not-real"
+
+
+def test_workbench_persisted_actions_use_real_summary_and_reject_demo_ids(tmp_path) -> None:
+    session_factory = _make_session_factory(tmp_path)
+    with session_factory() as db:
+        _seed_overview_history(db)
+
+    client = _make_client(session_factory)
+
+    updated_review = client.post(
+        "/api/v1/workbench/workflows/wf-alpha/review/r1",
+        json={"verdict": "equivalent"},
+    )
+    assert updated_review.status_code == 200
+    updated_payload = updated_review.json()
+    assert updated_payload["summary"] == {
+        "totalWorkflows": 3,
+        "verifiedWorkflows": 1,
+        "averageScore": 83.1,
+        "totalNodes": 24,
+        "migratedNodes": 16,
+        "failedNodes": 8,
+        "pendingReviews": 1,
+    }
+
+    demo_workflow = client.get("/api/v1/workbench/workflows/wf1/topology")
+    assert demo_workflow.status_code == 404
+    assert demo_workflow.json()["detail"] == "Unknown workflow: wf1"
+
+    unknown = client.post("/api/v1/workbench/workflows/not-real/sandbox/start")
+    assert unknown.status_code == 404
+    assert unknown.json()["detail"] == "Unknown workflow: not-real"
