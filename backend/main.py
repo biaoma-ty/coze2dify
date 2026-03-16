@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,7 +8,24 @@ from api.endpoints import sync as sync_endpoints
 from db.database import Base, engine
 from db import models as _db_models  # noqa: F401
 
-app = FastAPI(title="Coze2Dify", description="Coze to Dify workflow migration tool", version="0.1.0")
+
+def ensure_project_tables() -> None:
+    Base.metadata.create_all(bind=engine)
+    sync_endpoints.restore_schedules()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    ensure_project_tables()
+    yield
+
+
+app = FastAPI(
+    title="Coze2Dify",
+    description="Coze to Dify workflow migration tool",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,12 +42,6 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
-
-
-@app.on_event("startup")
-def ensure_project_tables() -> None:
-    Base.metadata.create_all(bind=engine)
-    sync_endpoints.restore_schedules()
 
 
 @app.get("/health")

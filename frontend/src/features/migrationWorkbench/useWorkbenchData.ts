@@ -240,7 +240,10 @@ export default function useWorkbenchData() {
         current
           ? {
               ...current,
-              summary: payload.summary,
+              summary: {
+                ...current.summary,
+                pendingReviews: payload.summary.pendingReviews,
+              },
             }
           : current,
       );
