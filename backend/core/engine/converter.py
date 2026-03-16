@@ -7,6 +7,7 @@ from core.ir.models import ConversionReport, IRNode, IRWorkflow, NodeConversionR
 from core.ir.types import IRNodeType
 from core.mapper.node_mapper import NodeMapper
 from core.validation.graph_validator import IRGraphValidator
+from core.validation.semantic_validator import IRSemanticValidator
 from core.validation.support_policy import StrictSupportSubsetPolicy
 
 
@@ -18,6 +19,7 @@ class ConversionEngine:
         self.dify_generator = DifyGenerator()
         self.node_mapper = NodeMapper()
         self.graph_validator = IRGraphValidator()
+        self.semantic_validator = IRSemanticValidator()
         self.support_policy = StrictSupportSubsetPolicy()
 
     def convert_from_json(self, content: str | bytes, fmt: str = "json") -> tuple[DifyDSL | None, ConversionReport]:
@@ -40,6 +42,7 @@ class ConversionEngine:
         errors: list[str] = []
         rules = {node_type: self.node_mapper.get_rule(node_type) for node_type in IRNodeType}
         graph_validation = self.graph_validator.validate(ir_workflow)
+        semantic_validation = self.semantic_validator.validate(ir_workflow)
         support_decision = self.support_policy.assess_workflow(ir_workflow, rules=rules)
 
         all_nodes = self._iter_nodes(ir_workflow.nodes)
@@ -72,9 +75,11 @@ class ConversionEngine:
                     skipped += 1
 
         return ConversionReport(
-            supported=support_decision.supported and not graph_validation.errors,
+            supported=support_decision.supported and not graph_validation.errors and not semantic_validation.errors,
             requires_manual_review=support_decision.requires_manual_review,
-            blocking_issues=self._dedupe(support_decision.blocking_issues + graph_validation.errors),
+            blocking_issues=self._dedupe(
+                support_decision.blocking_issues + graph_validation.errors + semantic_validation.errors
+            ),
             manual_review_reasons=support_decision.manual_review_reasons,
             workflow_name=ir_workflow.name,
             total_nodes=len(all_nodes),
@@ -83,8 +88,8 @@ class ConversionEngine:
             unmappable_count=unmappable,
             skipped_count=skipped,
             node_results=results,
-            warnings=self._dedupe(warnings),
-            errors=self._dedupe(errors + graph_validation.errors),
+            warnings=self._dedupe(warnings + semantic_validation.warnings),
+            errors=self._dedupe(errors + graph_validation.errors + semantic_validation.errors),
         )
 
     def _iter_nodes(self, nodes: list[IRNode]) -> list[IRNode]:

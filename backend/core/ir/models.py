@@ -18,6 +18,7 @@ class IRVariableRef(BaseModel):
 class IRVariable(BaseModel):
     name: str
     var_type: IRVariableType
+    scope: Literal["node", "global_app", "global_system", "global_user"] = "node"
     required: bool = False
     description: str = ""
     default_value: Any = None

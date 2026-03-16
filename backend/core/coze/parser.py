@@ -135,7 +135,9 @@ class CozeParser:
 
     def parse_dict(self, data: dict[str, Any]) -> IRWorkflow:
         canvas = CozeCanvas.model_validate(data)
-        return self._parse_canvas(canvas)
+        workflow = self._parse_canvas(canvas)
+        workflow.global_variables = self._parse_global_variables(data)
+        return workflow
 
     def _parse_canvas(self, canvas: CozeCanvas) -> IRWorkflow:
         nodes = [self._parse_node(n) for n in canvas.nodes]
@@ -155,6 +157,71 @@ class CozeParser:
             mode=self._coerce_mode(canvas.mode),
             nodes=nodes,
             edges=self._dedupe_edges(edges),
+        )
+
+    def _parse_global_variables(self, data: dict[str, Any]) -> list[IRVariable]:
+        if not isinstance(data, dict):
+            return []
+
+        candidates: list[tuple[Any, str | None]] = [
+            (data.get("variables"), None),
+            (data.get("globalVariables"), None),
+            (data.get("global_variables"), None),
+            (data.get("environmentVariables"), "global_app"),
+            (data.get("environment_variables"), "global_app"),
+            (data.get("conversationVariables"), "global_user"),
+            (data.get("conversation_variables"), "global_user"),
+        ]
+
+        parsed: list[IRVariable] = []
+        seen: set[tuple[str, str]] = set()
+        for raw_variables, fallback_scope in candidates:
+            if not isinstance(raw_variables, list):
+                continue
+            for raw_variable in raw_variables:
+                variable = self._parse_global_variable(raw_variable, fallback_scope=fallback_scope)
+                if variable is None:
+                    continue
+                key = (variable.scope, variable.name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                parsed.append(variable)
+        return parsed
+
+    def _parse_global_variable(self, raw_variable: Any, *, fallback_scope: str | None) -> IRVariable | None:
+        if not isinstance(raw_variable, dict):
+            return None
+
+        name = str(
+            raw_variable.get("name")
+            or raw_variable.get("variable")
+            or raw_variable.get("key")
+            or raw_variable.get("id")
+            or ""
+        ).strip()
+        if not name:
+            return None
+
+        default_value = self._first_present(
+            raw_variable,
+            "default",
+            "defaultValue",
+            "default_value",
+            "value",
+            "initialValue",
+            "initial_value",
+        )
+        var_type = self._coerce_variable_type(raw_variable, default_value)
+        scope = self._coerce_global_scope(raw_variable, fallback_scope=fallback_scope)
+
+        return IRVariable(
+            name=name,
+            scope=scope,
+            var_type=var_type,
+            required=bool(raw_variable.get("required", False)),
+            description=str(raw_variable.get("description") or raw_variable.get("desc") or ""),
+            default_value=default_value,
         )
 
     def _parse_node(self, coze_node: CozeNode) -> IRNode:
@@ -301,3 +368,61 @@ class CozeParser:
         if normalized in {"chatflow", "advanced-chat", "chat"}:
             return "chatflow"
         return "workflow"
+
+    @staticmethod
+    def _first_present(payload: dict[str, Any], *keys: str) -> Any:
+        for key in keys:
+            if key in payload:
+                return payload[key]
+        return None
+
+    @staticmethod
+    def _coerce_global_scope(raw_variable: dict[str, Any], *, fallback_scope: str | None) -> str:
+        raw_scope = str(
+            raw_variable.get("source")
+            or raw_variable.get("sourceType")
+            or raw_variable.get("scope")
+            or raw_variable.get("variableScope")
+            or fallback_scope
+            or "global_app"
+        ).strip().lower()
+
+        if raw_scope in {"global_variable_user", "global_user", "user", "conversation", "conversation_variable"}:
+            return "global_user"
+        if raw_scope in {"global_variable_system", "global_system", "system", "sys"}:
+            return "global_system"
+        return "global_app"
+
+    @staticmethod
+    def _coerce_variable_type(raw_variable: dict[str, Any], default_value: Any) -> IRVariableType:
+        raw_type = raw_variable.get("type")
+        if isinstance(raw_type, dict):
+            raw_type = raw_type.get("name") or raw_type.get("type")
+        if raw_type in (None, "") and isinstance(raw_variable.get("input"), dict):
+            raw_type = raw_variable["input"].get("type")
+        if raw_type not in (None, ""):
+            normalized = str(raw_type).strip().lower()
+            if normalized in _VAR_TYPE_MAP:
+                return _VAR_TYPE_MAP[normalized]
+            if normalized in {"int", "long"}:
+                return IRVariableType.INTEGER
+            if normalized in {"double", "decimal"}:
+                return IRVariableType.NUMBER
+            if normalized in {"bool"}:
+                return IRVariableType.BOOLEAN
+            if normalized in {"json"}:
+                return IRVariableType.OBJECT
+
+        if isinstance(default_value, bool):
+            return IRVariableType.BOOLEAN
+        if isinstance(default_value, int) and not isinstance(default_value, bool):
+            return IRVariableType.INTEGER
+        if isinstance(default_value, float):
+            return IRVariableType.NUMBER
+        if isinstance(default_value, list):
+            return IRVariableType.ARRAY
+        if isinstance(default_value, dict):
+            return IRVariableType.OBJECT
+        if isinstance(default_value, str):
+            return IRVariableType.STRING
+        return IRVariableType.ANY
