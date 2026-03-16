@@ -70,6 +70,72 @@ def test_convert_uploaded_file_persists_artifacts(tmp_path) -> None:
     assert "workflow:" in yaml_output
 
 
+def test_convert_uploaded_file_preserves_embedded_workflow_metadata(tmp_path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-embedded-metadata.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    service = ConversionService()
+    canvas = {
+        **MINIMAL_COZE_CANVAS,
+        "id": "wf-upload-123",
+        "name": "Embedded Upload Name",
+        "description": "Embedded description",
+        "mode": "chatflow",
+    }
+
+    with session_factory() as db:
+        result = service.convert_uploaded_file(
+            db,
+            json.dumps(canvas).encode(),
+            "workflow-with-metadata.json",
+        )
+
+    assert result["source_workflow_id"] == "wf-upload-123"
+    assert result["source_workflow_name"] == "Embedded Upload Name"
+    assert result["report"]["workflow_name"] == "Embedded Upload Name"
+    assert result["dsl"]["app"]["name"] == "Embedded Upload Name"
+    assert result["dsl"]["app"]["description"] == "Embedded description"
+    assert result["dsl"]["app"]["mode"] == "advanced-chat"
+
+
+def test_convert_from_db_merges_wrapper_metadata_into_canvas(tmp_path, monkeypatch) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'coze2dify-db-wrapper-metadata.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    service = ConversionService()
+
+    class FakeReader:
+        def __init__(self, db_url: str) -> None:
+            self.db_url = db_url
+
+        def read_workflow(self, workflow_id: str) -> dict[str, object] | None:
+            return {
+                "id": workflow_id,
+                "name": "Wrapped DB Name",
+                "description": "Wrapped DB description",
+                "mode": "chatflow",
+                "canvas": MINIMAL_COZE_CANVAS,
+            }
+
+    monkeypatch.setattr("core.engine.conversion_service.CozeDbReader", FakeReader)
+
+    with session_factory() as db:
+        result = service.convert_from_db(db, db_url="postgresql://coze.example/db", workflow_id="wf-db-123")
+
+    assert result["source_workflow_id"] == "wf-db-123"
+    assert result["source_workflow_name"] == "Wrapped DB Name"
+    assert result["report"]["workflow_name"] == "Wrapped DB Name"
+    assert result["dsl"]["app"]["name"] == "Wrapped DB Name"
+    assert result["dsl"]["app"]["description"] == "Wrapped DB description"
+    assert result["dsl"]["app"]["mode"] == "advanced-chat"
+
+
 def test_get_conversion_includes_nested_source_graph_summary(tmp_path, monkeypatch) -> None:
     engine = create_engine(
         f"sqlite:///{tmp_path / 'coze2dify-nested-source-graph.db'}",

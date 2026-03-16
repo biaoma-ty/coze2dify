@@ -67,6 +67,10 @@ class CozeNode(BaseModel):
 
 
 class CozeCanvas(BaseModel):
+    id: str = ""
+    name: str = ""
+    description: str = ""
+    mode: str = "workflow"
     nodes: list[CozeNode] = Field(default_factory=list)
     edges: list[CozeEdge] = Field(default_factory=list)
     versions: dict[str, str] = Field(default_factory=dict)
