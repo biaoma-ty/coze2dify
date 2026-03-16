@@ -102,9 +102,7 @@ def test_update_workflow_updates_app_metadata_and_graph(tmp_path) -> None:
             app_row = conn.execute(
                 text("SELECT name, mode, description, icon, icon_background, icon_type FROM apps WHERE id = 'app-1'")
             ).fetchone()
-            workflow_row = conn.execute(
-                text("SELECT graph, features FROM workflows WHERE app_id = 'app-1'")
-            ).fetchone()
+            workflow_row = conn.execute(text("SELECT graph, features FROM workflows WHERE app_id = 'app-1'")).fetchone()
     finally:
         engine.dispose()
 

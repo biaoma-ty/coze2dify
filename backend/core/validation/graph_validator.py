@@ -28,7 +28,9 @@ class IRGraphValidator:
             )
         )
         if self._has_cycle(top_level_ids, workflow.edges):
-            result.errors.append("Workflow graph contains a top-level cycle; only acyclic top-level graphs are supported.")
+            result.errors.append(
+                "Workflow graph contains a top-level cycle; only acyclic top-level graphs are supported."
+            )
 
         for node in workflow.nodes:
             self._validate_composite(node, result)
@@ -78,13 +80,9 @@ class IRGraphValidator:
         errors: list[str] = []
         for edge in edges:
             if edge.source_node_id not in valid_node_ids:
-                errors.append(
-                    f"{context.capitalize()} edge references missing source node '{edge.source_node_id}'."
-                )
+                errors.append(f"{context.capitalize()} edge references missing source node '{edge.source_node_id}'.")
             if edge.target_node_id not in valid_node_ids:
-                errors.append(
-                    f"{context.capitalize()} edge references missing target node '{edge.target_node_id}'."
-                )
+                errors.append(f"{context.capitalize()} edge references missing target node '{edge.target_node_id}'.")
         return errors
 
     @staticmethod

@@ -41,10 +41,7 @@ class DiffDetector:
             if isinstance(value, dict):
                 canonical[key] = cls._canonicalize_dict(value)
             elif isinstance(value, list):
-                canonical[key] = [
-                    cls._canonicalize_dict(item) if isinstance(item, dict) else item
-                    for item in value
-                ]
+                canonical[key] = [cls._canonicalize_dict(item) if isinstance(item, dict) else item for item in value]
             else:
                 canonical[key] = value
         return canonical
