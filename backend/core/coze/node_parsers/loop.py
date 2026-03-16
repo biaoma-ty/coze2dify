@@ -7,6 +7,21 @@ from core.ir.types import IRNodeType
 from . import register_parser
 
 
+def _parse_array_selector(raw: Any) -> list[str]:
+    """Normalize arraySelector to ``[node_id, field_name]``."""
+    if isinstance(raw, list):
+        return [str(s) for s in raw]
+    if isinstance(raw, str) and raw:
+        parts = raw.split(".")
+        if len(parts) >= 2:
+            return parts
+        # Single-segment string is ambiguous; preserve it as a single-element
+        # list so downstream code can see the raw value instead of silently
+        # discarding it.
+        return [raw]
+    return []
+
+
 class LoopNodeParser:
     def parse(self, node: Any, variable_resolver: Any) -> dict[str, Any]:
         config: dict[str, Any] = {}
@@ -24,7 +39,7 @@ class LoopNodeParser:
 
             if loop_type == "array":
                 node_type = IRNodeType.BATCH if is_batch else IRNodeType.LOOP_ARRAY
-                config["iterator_selector"] = loop_config.get("arraySelector", "")
+                config["iterator_selector"] = _parse_array_selector(loop_config.get("arraySelector", ""))
             elif loop_type == "count" and not is_batch:
                 node_type = IRNodeType.LOOP_COUNTED
                 config["loop_count"] = loop_config.get("loopTimes", 10)

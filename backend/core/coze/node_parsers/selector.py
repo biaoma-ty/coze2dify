@@ -77,6 +77,15 @@ class SelectorNodeParser:
                         var_type=_TYPE_MAP.get(right_input.get("type", "string"), IRVariableType.ANY),
                         literal_value=right_value.get("content"),
                     )
+                elif right_value.get("type") in ("ref", "object_ref") and isinstance(
+                    right_value.get("content"), dict
+                ):
+                    ref_data = CozeBlockInputReference.model_validate(right_value["content"])
+                    right_var = IRVariable(
+                        name="",
+                        var_type=_TYPE_MAP.get(right_input.get("type", "string"), IRVariableType.ANY),
+                        ref=variable_resolver.resolve_reference(ref_data),
+                    )
 
                 operator_code = cond.get("operatorType", cond.get("operator", 1))
                 operator = _OPERATOR_MAP.get(operator_code, IRConditionOperator.EQUAL)

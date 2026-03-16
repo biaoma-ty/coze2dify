@@ -67,6 +67,8 @@ class IfElseNodeGenerator:
                 elif cond.operator == IRConditionOperator.IS_FALSE:
                     dify_cond["varType"] = "boolean"
                     dify_cond["value"] = False
+                elif cond.right and cond.right.ref:
+                    dify_cond["value"] = var_transformer.to_selector(cond.right.ref)
                 elif cond.right and cond.right.literal_value is not None:
                     dify_cond["value"] = cond.right.literal_value
                 conditions.append(dify_cond)

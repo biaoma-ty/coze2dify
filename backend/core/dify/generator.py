@@ -94,6 +94,10 @@ class DifyGenerator:
         all_edges = edge_builder.build_edges(normalized_workflow.edges)
         for ir_node in normalized_workflow.nodes:
             all_edges.extend(self._build_composite_edges(ir_node, edge_builder))
+        emitted_node_ids = {node.id for node in dify_nodes}
+        all_edges = [
+            edge for edge in all_edges if edge.source in emitted_node_ids and edge.target in emitted_node_ids
+        ]
 
         graph = DifyGraph(nodes=dify_nodes, edges=all_edges)
         workflow = DifyWorkflow(graph=graph)
@@ -117,9 +121,11 @@ class DifyGenerator:
         )
         return normalized_workflow
 
+    _SKIP_NODE_TYPES = {IRNodeType.COMMENT, IRNodeType.BREAK, IRNodeType.CONTINUE, IRNodeType.UNKNOWN}
+
     def _generate_nodes(self, ir_node: IRNode, parent: IRNode | None = None) -> list[DifyNode]:
         nodes: list[DifyNode] = []
-        if ir_node.node_type != IRNodeType.COMMENT:
+        if ir_node.node_type not in self._SKIP_NODE_TYPES:
             nodes.append(self._generate_node(ir_node, parent))
 
         if self._is_composite_node(ir_node):
@@ -259,18 +265,18 @@ class DifyGenerator:
         if not helper_nodes:
             return edges
 
-        first_helper_id = helper_nodes[0].id
-        rewired_edges = [
-            edge.model_copy(update={"target_node_id": first_helper_id})
-            if edge.target_node_id == condition_node_id
-            else edge
-            for edge in edges
-        ]
+        # Fan-out: every edge that targeted the condition node is duplicated to
+        # target each helper in parallel.  Fan-in: each helper gets its own
+        # edge to the condition node.
+        upstream_edges = [e for e in edges if e.target_node_id == condition_node_id]
+        passthrough_edges = [e for e in edges if e.target_node_id != condition_node_id]
+        rewired_edges = list(passthrough_edges)
 
-        for current_helper, next_helper in zip(helper_nodes, helper_nodes[1:]):
-            rewired_edges.append(IREdge(source_node_id=current_helper.id, target_node_id=next_helper.id))
+        for helper in helper_nodes:
+            for upstream in upstream_edges:
+                rewired_edges.append(upstream.model_copy(update={"target_node_id": helper.id}))
+            rewired_edges.append(IREdge(source_node_id=helper.id, target_node_id=condition_node_id))
 
-        rewired_edges.append(IREdge(source_node_id=helper_nodes[-1].id, target_node_id=condition_node_id))
         return rewired_edges
 
     @staticmethod

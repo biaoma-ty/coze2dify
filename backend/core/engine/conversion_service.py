@@ -132,7 +132,7 @@ class ConversionService:
         if not target_db_url:
             raise ValueError("Dify database URL is required")
         report = task.report or {}
-        if not bool(report.get("supported", True)):
+        if not bool(report.get("supported", False)):
             blocking_issues = report.get("blocking_issues") or []
             detail = blocking_issues[0] if blocking_issues else "This workflow is outside the strict supported subset."
             raise ValueError(detail)
