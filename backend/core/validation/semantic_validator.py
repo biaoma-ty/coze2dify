@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from core.ir.models import IRBranch, IRCondition, IRNode, IRVariable, IRWorkflow
+from core.ir.types import ErrorStrategy, IRNodeType
 
 
 @dataclass(slots=True)
@@ -42,10 +43,24 @@ class IRSemanticValidator:
                     f"Global variable reference '{ref_name}' with scope '{ref_scope}' is not declared at the workflow level."
                 )
 
+        for node in self._iter_nodes(workflow.nodes):
+            if not node.error_handling.enabled:
+                continue
+            errors.extend(self._validate_error_handling(node))
+
         return SemanticValidationResult(
             errors=self._dedupe(errors),
             warnings=self._dedupe(warnings),
         )
+
+    @staticmethod
+    def _iter_nodes(nodes: list[IRNode]) -> list[IRNode]:
+        flattened: list[IRNode] = []
+        for node in nodes:
+            flattened.append(node)
+            if node.children:
+                flattened.extend(IRSemanticValidator._iter_nodes(node.children))
+        return flattened
 
     def _iter_global_references(self, nodes: list[IRNode]) -> list[tuple[str, str]]:
         refs: list[tuple[str, str]] = []
@@ -81,6 +96,17 @@ class IRSemanticValidator:
         if condition.right and condition.right.ref and condition.right.ref.source_type != "node_output":
             refs.append((condition.right.ref.source_type, condition.right.ref.field_name))
         return refs
+
+    @staticmethod
+    def _validate_error_handling(node: IRNode) -> list[str]:
+        if node.node_type == IRNodeType.HTTP_REQUEST and node.error_handling.strategy == ErrorStrategy.THROW:
+            return []
+
+        node_label = node.source_type_name or node.node_type.value
+        return [
+            f"{node_label} uses Coze error-handling strategy '{node.error_handling.strategy.value}', "
+            "but this migrator only preserves THROW semantics on HTTP request nodes."
+        ]
 
     @staticmethod
     def _dedupe(items: list[str]) -> list[str]:
