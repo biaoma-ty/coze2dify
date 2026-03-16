@@ -4,6 +4,7 @@ from typing import Any
 
 from core.ir.types import IRNodeType
 
+from ..models import CozeBlockInputReference
 from . import register_parser
 
 
@@ -57,7 +58,8 @@ class LoopNodeParser:
                     value = input_params[0].get("input", {}).get("value", {})
                     content = value.get("content", {})
                     if isinstance(content, dict):
-                        config["iterator_selector"] = [content.get("blockID", ""), content.get("name", "")]
+                        ref = variable_resolver.resolve_reference(CozeBlockInputReference.model_validate(content))
+                        config["iterator_selector"] = [ref.source_node_id, ref.field_name, *ref.nested_path]
             elif loop_type == "count" and not is_batch:
                 loop_value = coze_inputs.get("loopCount", {}).get("value", {}).get("content")
                 try:

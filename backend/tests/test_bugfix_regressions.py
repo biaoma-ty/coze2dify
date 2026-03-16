@@ -19,6 +19,7 @@ from db.database import Base
 # 1. Selector RHS variable references
 # ---------------------------------------------------------------------------
 
+
 def _selector_canvas_with_rhs_ref() -> dict:
     """Condition: start.count == other.count (both sides are variable refs)."""
     return {
@@ -204,6 +205,7 @@ def test_selector_rhs_literal_still_works() -> None:
 # 2. loopConfig.arraySelector string normalization
 # ---------------------------------------------------------------------------
 
+
 def test_loop_config_array_selector_string_parsed_to_list() -> None:
     """loopConfig.arraySelector as a dotted string must become a list."""
     canvas = {
@@ -305,9 +307,55 @@ def test_loop_config_array_selector_dify_dsl_preserves_list() -> None:
     assert dify_loop.data.iterator_selector == ["start", "items"]
 
 
+def test_loop_input_parameter_reference_preserves_nested_path() -> None:
+    canvas = {
+        "nodes": [
+            {
+                "id": "start",
+                "type": "1",
+                "meta": {"position": {"x": 0, "y": 0}},
+                "data": {"outputs": [{"type": "object", "name": "payload", "required": True}]},
+            },
+            {
+                "id": "loop",
+                "type": "21",
+                "meta": {"position": {"x": 280, "y": 0}},
+                "data": {
+                    "inputs": {
+                        "loopType": "array",
+                        "inputParameters": [
+                            {
+                                "name": "items",
+                                "input": {
+                                    "type": "array",
+                                    "value": {
+                                        "type": "ref",
+                                        "content": {
+                                            "blockID": "start",
+                                            "name": "payload",
+                                            "path": ["items"],
+                                            "source": "block-output",
+                                        },
+                                    },
+                                },
+                            }
+                        ],
+                    }
+                },
+            },
+        ],
+        "edges": [{"sourceNodeID": "start", "targetNodeID": "loop"}],
+        "versions": {},
+    }
+
+    workflow = CozeParser().parse_dict(canvas)
+    assert workflow.nodes[1].config["iterator_selector"] == ["start", "payload", "items"]
+
+
 # ---------------------------------------------------------------------------
 # 3. BREAK / CONTINUE / UNKNOWN nodes should not emit Dify nodes
 # ---------------------------------------------------------------------------
+
 
 def test_generator_skips_break_node() -> None:
     from core.ir.models import IREdge, IRNode, IRPosition, IRWorkflow
@@ -383,6 +431,7 @@ def test_generator_skips_unknown_node() -> None:
 # ---------------------------------------------------------------------------
 # 4. Multiple length conditions produce parallel helper wiring
 # ---------------------------------------------------------------------------
+
 
 def test_multiple_length_helpers_wired_in_parallel() -> None:
     """Two length conditions should fan-out from upstream, not chain."""
