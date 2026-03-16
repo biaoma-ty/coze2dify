@@ -112,6 +112,7 @@ class DifyDbWriter:
         return app_id
 
     def update_workflow(self, app_id: str, dsl: DifyDSL) -> None:
+        app_config = dsl.app
         graph_json = json.dumps(dsl.workflow.graph.model_dump())
         features_json = json.dumps(dsl.workflow.features or {})
         environment_variables_json = self._serialize_named_variables(dsl.workflow.environment_variables)
@@ -121,7 +122,35 @@ class DifyDbWriter:
 
         with self.engine.begin() as conn:
             _, account_id = self._ensure_owner_context(conn)
-            conn.execute(
+            app_result = conn.execute(
+                text("""
+                    UPDATE apps
+                    SET name = :name,
+                        mode = :mode,
+                        description = :desc,
+                        icon = :icon,
+                        icon_background = :icon_bg,
+                        icon_type = :icon_type,
+                        updated_by = :updated_by,
+                        updated_at = :updated_at
+                    WHERE id = :app_id
+                """),
+                {
+                    "name": app_config.get("name", ""),
+                    "mode": app_config.get("mode", "workflow"),
+                    "desc": app_config.get("description", ""),
+                    "icon": app_config.get("icon", ""),
+                    "icon_bg": app_config.get("icon_background", ""),
+                    "icon_type": "emoji" if app_config.get("icon") else None,
+                    "updated_by": account_id,
+                    "updated_at": now,
+                    "app_id": app_id,
+                },
+            )
+            if app_result.rowcount == 0:
+                raise LookupError(f"Dify app {app_id} not found for update")
+
+            workflow_result = conn.execute(
                 text("""
                     UPDATE workflows
                     SET graph = :graph,
@@ -144,6 +173,8 @@ class DifyDbWriter:
                     "app_id": app_id,
                 },
             )
+            if workflow_result.rowcount == 0:
+                raise LookupError(f"Dify workflow for app {app_id} not found for update")
 
     def test_connection(self) -> bool:
         try:
