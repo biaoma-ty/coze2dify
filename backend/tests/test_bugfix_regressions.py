@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from core.coze.parser import CozeParser
 from core.dify.generator import DifyGenerator
 from core.engine.conversion_service import ConversionService
-from core.ir.types import IRConditionOperator, IRNodeType
+from core.ir.types import IRNodeType
 from db.database import Base
 
 
