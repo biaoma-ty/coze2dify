@@ -7,9 +7,9 @@ from core.engine.conversion_service import ConversionService
 from .coze_workflow_corpus import CORPUS_CASES
 
 
-def test_strict_subset_corpus_contains_42_cases() -> None:
-    assert len(CORPUS_CASES) == 42
-    assert len({case.name for case in CORPUS_CASES}) == 42
+def test_strict_subset_corpus_contains_43_cases() -> None:
+    assert len(CORPUS_CASES) == 43
+    assert len({case.name for case in CORPUS_CASES}) == 43
 
 
 @pytest.mark.parametrize("case", CORPUS_CASES, ids=lambda case: case.name)
