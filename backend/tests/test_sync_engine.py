@@ -268,6 +268,69 @@ class ManualReviewConversionService(FakeConversionService):
         return result
 
 
+def test_sync_engine_unchanged_fingerprint_includes_workflow_level_state_variables() -> None:
+    conversion = {
+        "dsl": {
+            "workflow": {
+                "graph": {"nodes": [{"id": "start"}], "edges": []},
+                "features": {"mode": "workflow"},
+                "environment_variables": [
+                    {
+                        "name": "api_key",
+                        "value_type": "string",
+                        "value": "secret",
+                        "description": "API key",
+                    }
+                ],
+                "conversation_variables": [
+                    {
+                        "name": "memory",
+                        "value_type": "string",
+                        "value": "",
+                        "description": "Conversation memory",
+                        "selector": ["conversation", "memory"],
+                    }
+                ],
+            }
+        }
+    }
+    same_target = {
+        "graph": {"nodes": [{"id": "start"}], "edges": []},
+        "features": {"mode": "workflow"},
+        "environment_variables": {
+            "api_key": {
+                "name": "api_key",
+                "value_type": "string",
+                "value": "secret",
+                "description": "API key",
+            }
+        },
+        "conversation_variables": {
+            "memory": {
+                "name": "memory",
+                "value_type": "string",
+                "value": "",
+                "description": "Conversation memory",
+                "selector": ["conversation", "memory"],
+            }
+        },
+    }
+    changed_target = {
+        **same_target,
+        "environment_variables": {
+            "api_key": {
+                "name": "api_key",
+                "value_type": "string",
+                "value": "rotated-secret",
+                "description": "API key",
+            }
+        },
+    }
+
+    assert SyncEngine._is_unchanged(conversion, same_target) is True
+    assert SyncEngine._is_unchanged(conversion, changed_target) is False
+
+
 def _minimal_canvas(node_id: str) -> dict[str, object]:
     start_id = f"{node_id}-start"
     end_id = f"{node_id}-end"

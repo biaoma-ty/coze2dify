@@ -336,6 +336,17 @@ export default function useWorkbenchData() {
     try {
       const payload = await sendWorkflowSandboxMessage(selectedWorkflow.id, text);
       setSandboxState({ data: payload, loading: false, error: null });
+      try {
+        const latestOverview = await getWorkbenchOverview();
+        setOverview(latestOverview);
+        setSelectedWorkflowId((current) =>
+          latestOverview.workflows.some((workflow) => workflow.id === current)
+            ? current
+            : latestOverview.workflows[0]?.id || "",
+        );
+      } catch {
+        // Keep the sandbox interaction responsive even if the overview refresh fails.
+      }
     } catch (error) {
       message.error(extractError(error));
     } finally {

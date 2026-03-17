@@ -181,7 +181,7 @@ export interface StructureDiffItem {
 
 export interface SandboxMessage {
   id: string;
-  role: "user" | "coze" | "dify";
+  role: "user" | "assistant" | "coze" | "dify";
   text: string;
   latencyMs?: number;
 }

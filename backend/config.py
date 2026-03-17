@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Upload
     max_upload_size_mb: int = 50
 
+    # Workbench chat orchestration
+    workbench_chat_api_base: str = "https://api.openai.com/v1"
+    workbench_chat_api_key: str = ""
+    workbench_chat_model: str = ""
+    workbench_chat_timeout_seconds: float = 15.0
+
     # Dev Mode — auto-detect local Coze Studio / Dify deployments
     dev_mode: bool = False
     dev_mode_coze_paths: list[str] = [

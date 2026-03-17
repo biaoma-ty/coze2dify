@@ -25,37 +25,24 @@ class LLMNodeGenerator:
             },
         }
 
-        # Prompt template — inject variable references as {{#...#}} template syntax
-        prompt = config.get("prompt_template", "")
-        system_prompt = config.get("system_prompt", "")
-        context_selector: list[str] = []
-
-        # Replace input variable names with Dify template references in prompt text
-        for inp in ir_node.inputs:
-            if inp.ref:
-                if inp.name and inp.name.lower() == "context":
-                    context_selector = var_transformer.to_selector(inp.ref)
-                    template_ref = "{{#context#}}"
-                else:
-                    template_ref = var_transformer.to_template(inp.ref)
-                # Replace {{name}} or {name} placeholders with Dify template syntax
-                if inp.name:
-                    prompt = prompt.replace("{{" + inp.name + "}}", template_ref)
-                    prompt = prompt.replace("{" + inp.name + "}", template_ref)
-                    system_prompt = system_prompt.replace("{{" + inp.name + "}}", template_ref)
-                    system_prompt = system_prompt.replace("{" + inp.name + "}", template_ref)
-
-        prompts = []
-        if system_prompt:
-            prompts.append({"role": "system", "text": system_prompt})
-        prompts.append({"role": "user", "text": prompt})
-        extra["prompt_template"] = prompts
+        context_selector, replacements = self._build_template_replacements(ir_node, var_transformer)
+        prompt_messages = self._build_prompt_messages(config)
+        extra["prompt_template"] = [
+            {
+                "role": str(message.get("role") or "user"),
+                "text": self._interpolate_text(str(message.get("text") or ""), replacements),
+            }
+            for message in prompt_messages
+        ]
 
         # Dify LLM nodes use context for variable bindings
         context: dict[str, Any] = {"enabled": bool(context_selector), "variable_selector": context_selector}
         extra["context"] = context
         extra["memory"] = {
-            "query_prompt_template": config.get("memory_query_prompt_template", "{{#sys.query#}}"),
+            "query_prompt_template": self._interpolate_text(
+                str(config.get("memory_query_prompt_template", "{{#sys.query#}}")),
+                replacements,
+            ),
             "role_prefix": deepcopy(config.get("memory_role_prefix", {"assistant": "", "user": ""})),
             "window": {
                 "enabled": bool(config.get("enable_chat_history", False)),
@@ -64,6 +51,55 @@ class LLMNodeGenerator:
         }
 
         return extra
+
+    @staticmethod
+    def _build_prompt_messages(config: dict[str, Any]) -> list[dict[str, str]]:
+        raw_messages = config.get("prompt_messages")
+        if isinstance(raw_messages, list) and raw_messages:
+            return [
+                {
+                    "role": str(message.get("role") or "user"),
+                    "text": str(message.get("text") or ""),
+                }
+                for message in raw_messages
+                if isinstance(message, dict)
+            ]
+
+        messages: list[dict[str, str]] = []
+        system_prompt = str(config.get("system_prompt") or "")
+        prompt = str(config.get("prompt_template") or "")
+        if system_prompt:
+            messages.append({"role": "system", "text": system_prompt})
+        messages.append({"role": "user", "text": prompt})
+        return messages
+
+    @staticmethod
+    def _build_template_replacements(ir_node: Any, var_transformer: Any) -> tuple[list[str], dict[str, str]]:
+        context_selector: list[str] = []
+        replacements: dict[str, str] = {}
+        for inp in ir_node.inputs:
+            if not inp.name:
+                continue
+            if inp.ref:
+                if inp.name.lower() == "context":
+                    context_selector = var_transformer.to_selector(inp.ref)
+                    replacement = "{{#context#}}"
+                else:
+                    replacement = var_transformer.to_template(inp.ref)
+            elif inp.literal_value is not None:
+                replacement = str(inp.literal_value)
+            else:
+                replacement = ""
+            replacements["{{" + inp.name + "}}"] = replacement
+            replacements["{" + inp.name + "}"] = replacement
+        return context_selector, replacements
+
+    @staticmethod
+    def _interpolate_text(text: str, replacements: dict[str, str]) -> str:
+        rendered = text
+        for placeholder, replacement in replacements.items():
+            rendered = rendered.replace(placeholder, replacement)
+        return rendered
 
 
 register_generator(IRNodeType.LLM, LLMNodeGenerator())

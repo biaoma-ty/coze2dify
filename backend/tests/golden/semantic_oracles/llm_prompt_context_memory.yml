@@ -1,0 +1,15 @@
+prompt:
+  - role: system
+    text: You are a grounded assistant.
+  - role: user
+    text: |-
+      Question: What is the answer?
+      Context: facts
+context: facts
+memory:
+  enabled: true
+  size: 6
+  query_prompt_template: What is the answer?
+  role_prefix:
+    assistant: ''
+    user: ''

@@ -1,0 +1,15 @@
+prompt:
+  - role: system
+    text: 'Persona: Grounded analyst'
+  - role: assistant
+    text: 'Retrieved: facts'
+  - role: user
+    text: 'Question: What is the answer?'
+context: facts
+memory:
+  enabled: true
+  size: 4
+  query_prompt_template: 'Recall the latest user request: What is the answer?'
+  role_prefix:
+    assistant: Dify
+    user: User

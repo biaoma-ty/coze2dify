@@ -53,22 +53,33 @@ class DifyDbReader:
         """Read the workflow graph JSON for a given app ID."""
         with self.engine.connect() as conn:
             result = conn.execute(
-                text("SELECT graph, features FROM workflows WHERE app_id = :app_id"),
+                text(
+                    """
+                    SELECT graph, features, environment_variables, conversation_variables
+                    FROM workflows
+                    WHERE app_id = :app_id
+                    """
+                ),
                 {"app_id": app_id},
             )
             row = result.fetchone()
             if row is None:
                 return None
 
-            graph = row[0]
-            features = row[1]
-            # graph may be stored as JSON string or native JSONB
-            if isinstance(graph, str):
-                graph = json.loads(graph)
-            if isinstance(features, str):
-                features = json.loads(features)
+            graph = self._decode_json_field(row[0])
+            features = self._decode_json_field(row[1])
+            environment_variables = self._decode_json_field(row[2])
+            conversation_variables = self._decode_json_field(row[3])
             return {
                 "app_id": app_id,
                 "graph": graph,
                 "features": features,
+                "environment_variables": environment_variables,
+                "conversation_variables": conversation_variables,
             }
+
+    @staticmethod
+    def _decode_json_field(value: Any) -> Any:
+        if isinstance(value, str):
+            return json.loads(value)
+        return value

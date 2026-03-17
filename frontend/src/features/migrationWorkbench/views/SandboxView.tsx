@@ -36,12 +36,14 @@ export default function SandboxView({
 
   const roleColors = {
     user: C.acc,
+    assistant: C.warn,
     coze: C.coze,
     dify: C.dify,
   } as const;
 
   const roleLabels = {
     user: "👤 输入",
+    assistant: "🛠 工具",
     coze: "🔵 Coze",
     dify: "🟣 Dify",
   } as const;
@@ -182,6 +184,15 @@ export default function SandboxView({
             <WorkbenchButton variant="primary" type="button" onClick={send} disabled={sending}>
               {sending ? "发送中…" : "发送"}
             </WorkbenchButton>
+          </div>
+          <div
+            style={{
+              padding: "0 12px 10px",
+              fontSize: 10,
+              color: C.tx3,
+            }}
+          >
+            试试：迁移当前工作流 / 批量迁移 / 生成测试 / 运行测试 / 查看状态
           </div>
         </Panel>
 

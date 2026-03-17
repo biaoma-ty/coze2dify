@@ -201,31 +201,57 @@ def _trace_ir_llm_node(
     values: dict[str, dict[str, Any]],
     scopes: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    prompt = str(node.config.get("prompt_template") or "")
-    system_prompt = str(node.config.get("system_prompt") or "")
     context_value: Any = None
+    replacements: dict[str, str] = {}
 
     for inp in node.inputs:
-        if not inp.ref or not inp.name:
+        if not inp.name:
             continue
-        resolved = _resolve_ir_variable(values, inp, scopes)
-        if inp.name.lower() == "context":
-            context_value = resolved
-        prompt = prompt.replace("{{" + inp.name + "}}", "" if resolved is None else str(resolved))
-        prompt = prompt.replace("{" + inp.name + "}", "" if resolved is None else str(resolved))
-        system_prompt = system_prompt.replace("{{" + inp.name + "}}", "" if resolved is None else str(resolved))
-        system_prompt = system_prompt.replace("{" + inp.name + "}", "" if resolved is None else str(resolved))
+        if inp.ref is not None:
+            resolved = _resolve_ir_variable(values, inp, scopes)
+            if inp.name.lower() == "context":
+                context_value = resolved
+            replacement = "" if resolved is None else str(resolved)
+        elif inp.literal_value is not None:
+            replacement = str(inp.literal_value)
+        else:
+            replacement = ""
+        replacements["{{" + inp.name + "}}"] = replacement
+        replacements["{" + inp.name + "}"] = replacement
 
-    prompts = []
-    if system_prompt:
-        prompts.append({"role": "system", "text": system_prompt})
-    prompts.append({"role": "user", "text": prompt})
+    raw_prompts = node.config.get("prompt_messages")
+    if isinstance(raw_prompts, list) and raw_prompts:
+        prompts = [
+            {
+                "role": str(entry.get("role") or "user"),
+                "text": _replace_placeholders(str(entry.get("text") or ""), replacements),
+            }
+            for entry in raw_prompts
+            if isinstance(entry, dict)
+        ]
+    else:
+        prompt = _replace_placeholders(str(node.config.get("prompt_template") or ""), replacements)
+        system_prompt = _replace_placeholders(str(node.config.get("system_prompt") or ""), replacements)
+        prompts = []
+        if system_prompt:
+            prompts.append({"role": "system", "text": system_prompt})
+        prompts.append({"role": "user", "text": prompt})
+
+    query_replacements = dict(replacements)
+    query_replacements["{{query}}"] = str(scopes.get("sys", {}).get("query", "") or "")
+    query_replacements["{query}"] = str(scopes.get("sys", {}).get("query", "") or "")
+
     return {
         "prompt": prompts,
         "context": context_value,
         "memory": {
             "enabled": bool(node.config.get("enable_chat_history", False)),
             "size": int(node.config.get("chat_history_round", 10) or 10),
+            "query_prompt_template": _replace_placeholders(
+                str(node.config.get("memory_query_prompt_template", "{{query}}")),
+                query_replacements,
+            ),
+            "role_prefix": dict(node.config.get("memory_role_prefix") or {"assistant": "", "user": ""}),
         },
     }
 
@@ -259,8 +285,21 @@ def _trace_dify_llm_node(
         "memory": {
             "enabled": bool(memory_config.get("window", {}).get("enabled", False)),
             "size": int(memory_config.get("window", {}).get("size", 0) or 0),
+            "query_prompt_template": _render_template(
+                str(memory_config.get("query_prompt_template", "")),
+                values,
+                scopes,
+            ),
+            "role_prefix": dict(memory_config.get("role_prefix") or {"assistant": "", "user": ""}),
         },
     }
+
+
+def _replace_placeholders(template: str, replacements: dict[str, str]) -> str:
+    rendered = template
+    for placeholder, replacement in replacements.items():
+        rendered = rendered.replace(placeholder, replacement)
+    return rendered
 
 
 def _resolve_scoped_value(root: dict[str, Any], field_name: str, nested_path: list[str]) -> Any:

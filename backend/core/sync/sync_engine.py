@@ -845,6 +845,12 @@ class SyncEngine:
         return {
             "graph": workflow_payload.get("graph"),
             "features": workflow_payload.get("features") or {},
+            "environment_variables": SyncEngine._normalized_named_variables(
+                workflow_payload.get("environment_variables") or {}
+            ),
+            "conversation_variables": SyncEngine._normalized_named_variables(
+                workflow_payload.get("conversation_variables") or {}
+            ),
         }
 
     @staticmethod
@@ -852,7 +858,28 @@ class SyncEngine:
         return {
             "graph": target_workflow.get("graph"),
             "features": target_workflow.get("features") or {},
+            "environment_variables": SyncEngine._normalized_named_variables(
+                target_workflow.get("environment_variables") or {}
+            ),
+            "conversation_variables": SyncEngine._normalized_named_variables(
+                target_workflow.get("conversation_variables") or {}
+            ),
         }
+
+    @staticmethod
+    def _normalized_named_variables(raw_variables: Any) -> dict[str, Any]:
+        if isinstance(raw_variables, dict):
+            return raw_variables
+        if not isinstance(raw_variables, list):
+            return {}
+
+        payload: dict[str, Any] = {}
+        for index, variable in enumerate(raw_variables):
+            if not isinstance(variable, dict):
+                continue
+            key = str(variable.get("name") or variable.get("variable") or variable.get("id") or f"var_{index}")
+            payload[key] = variable
+        return payload
 
     @staticmethod
     def _find_duplicate_target_app_ids(mappings: dict[str, dict[str, Any]]) -> set[str]:
