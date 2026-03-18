@@ -525,4 +525,18 @@ class ConversionService:
                     continue
                 if merged.get(key) in (None, ""):
                     merged[key] = value
+            for key in (
+                "variables",
+                "globalVariables",
+                "global_variables",
+                "environmentVariables",
+                "environment_variables",
+                "conversationVariables",
+                "conversation_variables",
+            ):
+                value = source.get(key)
+                if not isinstance(value, list) or not value:
+                    continue
+                if not isinstance(merged.get(key), list) or not merged.get(key):
+                    merged[key] = value
         return merged

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
-from threading import Lock
+from threading import RLock
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from db.models import MigrationTask
 
+from .chat_orchestrator import ChatAction, ChatPlan, WorkbenchChatOrchestrator, WorkflowChatContext
 from .data import (
     EQUIVALENCE,
     ERROR_PATTERNS,
@@ -25,7 +26,8 @@ from .data import (
 
 class WorkbenchService:
     def __init__(self) -> None:
-        self._lock = Lock()
+        self._lock = RLock()
+        self._chat_orchestrator = WorkbenchChatOrchestrator()
         self.reset()
 
     def reset(self) -> None:
@@ -55,13 +57,30 @@ class WorkbenchService:
         with self._lock:
             if db is not None and self._has_persisted_overview(db):
                 for workflow in self._load_persisted_overview(db, limit=limit):
-                    if workflow["status"] == "pending":
-                        self._workflow_overrides[workflow["id"]] = self._build_batch_migrate_patch(workflow)
+                    self._mark_workflow_migrated(workflow)
             else:
                 for workflow in self._workflows:
-                    if workflow["status"] == "pending":
-                        workflow.update(self._build_batch_migrate_patch(workflow))
+                    self._mark_workflow_migrated(workflow)
         return self.get_overview(db, limit=limit)
+
+    def migrate_workflow(
+        self,
+        workflow_id: str,
+        db: Session | None = None,
+        *,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
+        with self._lock:
+            if db is not None and self._has_persisted_overview(db):
+                workflow = next(
+                    item for item in self._load_persisted_overview(db, limit=limit) if item["id"] == workflow_id
+                )
+                self._mark_workflow_migrated(workflow)
+            else:
+                workflow = next(item for item in self._workflows if item["id"] == workflow_id)
+                self._mark_workflow_migrated(workflow)
+        return self._get_visible_workflow(workflow_id, db, limit=limit)
 
     def get_topology(self, workflow_id: str, db: Session | None = None) -> dict[str, Any]:
         self._require_workflow(workflow_id, db)
@@ -240,7 +259,28 @@ class WorkbenchService:
 
             state["requestCount"] += 1
             state["messages"].append(self._build_message(state, "user", cleaned))
-            coze_latency, dify_latency = self._latencies_for(cleaned)
+        plan = self._plan_sandbox_message(workflow_id, cleaned, db)
+        if plan.actions or plan.reply:
+            command_messages = self._execute_chat_plan(workflow_id, plan, db)
+            with self._lock:
+                state = self._sandbox_state.setdefault(
+                    workflow_id,
+                    {"status": "idle", "messages": [], "requestCount": 0, "counter": 0},
+                )
+                if state["status"] != "running":
+                    return self._serialize_sandbox(state)
+                for message in command_messages:
+                    state["messages"].append(self._build_message(state, "assistant", message))
+                return self._serialize_sandbox(state)
+
+        coze_latency, dify_latency = self._latencies_for(cleaned)
+        with self._lock:
+            state = self._sandbox_state.setdefault(
+                workflow_id,
+                {"status": "idle", "messages": [], "requestCount": 0, "counter": 0},
+            )
+            if state["status"] != "running":
+                return self._serialize_sandbox(state)
             state["messages"].append(
                 self._build_message(
                     state,
@@ -445,6 +485,74 @@ class WorkbenchService:
         suffix = "…" if len(text) > 15 else ""
         return f"[{platform}] {short}{suffix}"
 
+    def _plan_sandbox_message(
+        self,
+        workflow_id: str,
+        text: str,
+        db: Session | None,
+    ) -> ChatPlan:
+        workflow = self._get_visible_workflow(workflow_id, db)
+        return self._chat_orchestrator.plan(
+            text,
+            WorkflowChatContext(
+                workflow_id=workflow["id"],
+                name=workflow["name"],
+                status=workflow["status"],
+                nodes=workflow["nodes"],
+                migrated=workflow["migrated"],
+                failed=workflow["failed"],
+                score=float(workflow["score"]),
+            ),
+        )
+
+    def _execute_chat_plan(
+        self,
+        workflow_id: str,
+        plan: ChatPlan,
+        db: Session | None,
+    ) -> list[str]:
+        messages: list[str] = []
+        for action in plan.actions:
+            messages.append(self._execute_chat_action(workflow_id, action, db))
+        if plan.reply:
+            messages.append(plan.reply)
+        return messages
+
+    def _execute_chat_action(
+        self,
+        workflow_id: str,
+        action: ChatAction,
+        db: Session | None,
+    ) -> str:
+        if action.type == "migrate_current":
+            workflow = self.migrate_workflow(workflow_id, db)
+            return f"已迁移工作流「{workflow['name']}」，当前状态：{self._workflow_status_label(workflow['status'])}。"
+
+        if action.type == "batch_migrate":
+            overview = self.batch_migrate(db)
+            pending = sum(1 for workflow in overview["workflows"] if workflow["status"] == "pending")
+            return f"已触发批量迁移，共 {overview['summary']['totalWorkflows']} 条工作流，剩余待迁移 {pending} 条。"
+
+        if action.type == "generate_tests":
+            payload = self.generate_tests(workflow_id, db)
+            generated = int(payload.get("generated") or 0)
+            if generated:
+                return f"已生成 {generated} 条测试用例，当前共 {len(payload['cases'])} 条。"
+            return f"测试用例已是最新，当前共 {len(payload['cases'])} 条。"
+
+        if action.type == "run_tests":
+            payload = self.run_tests(workflow_id, db)
+            total = int(payload.get("executed") or len(payload["cases"]))
+            passed = sum(1 for case in payload["cases"] if case["status"] == "pass")
+            failed = total - passed
+            return f"已执行 {total} 条测试，通过 {passed} 条，失败 {failed} 条。"
+
+        if action.type == "report_status":
+            workflow = self._get_visible_workflow(workflow_id, db)
+            return self._build_workflow_status_text(workflow)
+
+        raise ValueError(f"Unsupported chat action: {action.type}")
+
     def _latencies_for(self, text: str) -> tuple[int, int]:
         total = sum(ord(char) for char in text)
         return 800 + (total % 1201), 600 + (total % 1001)
@@ -475,6 +583,46 @@ class WorkbenchService:
             override = self._workflow_overrides.get(workflow["id"])
             result.append({**workflow, **override} if override else workflow)
         return result
+
+    def _get_visible_workflow(
+        self,
+        workflow_id: str,
+        db: Session | None = None,
+        *,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        self._require_workflow(workflow_id, db)
+        workflow = next(item for item in self._get_visible_workflows(db, limit=limit) if item["id"] == workflow_id)
+        return deepcopy(workflow)
+
+    def _mark_workflow_migrated(self, workflow: dict[str, Any]) -> None:
+        if workflow["status"] != "pending":
+            return
+
+        patch = self._build_batch_migrate_patch(workflow)
+        workflow_id = str(workflow["id"])
+        if any(item["id"] == workflow_id for item in self._workflows):
+            workflow.update(patch)
+            return
+
+        self._workflow_overrides[workflow_id] = patch
+
+    def _build_workflow_status_text(self, workflow: dict[str, Any]) -> str:
+        return (
+            f"当前工作流「{workflow['name']}」状态：{self._workflow_status_label(workflow['status'])}，"
+            f"迁移节点 {workflow['migrated']}/{workflow['nodes']}，"
+            f"失败 {workflow['failed']}，评分 {workflow['score']:.1f}。"
+        )
+
+    @staticmethod
+    def _workflow_status_label(status: str) -> str:
+        return {
+            "verified": "已验证",
+            "migrated": "已迁移",
+            "testing": "测试中",
+            "pending": "待迁移",
+            "failed": "失败",
+        }.get(status, status)
 
     @staticmethod
     def _build_batch_migrate_patch(workflow: dict[str, Any]) -> dict[str, Any]:

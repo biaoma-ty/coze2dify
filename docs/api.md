@@ -259,6 +259,14 @@ and excludes sync-owned conversion tasks.
 Diff payloads include the active `delete_policy`, and delete-gap items carry structured policy metadata rather
 than a generic unsupported message alone.
 
+### `POST /workbench/workflows/{workflow_id}/sandbox/messages`
+
+Send a sandbox chat message. The backend keeps the manual button path intact and treats chat as a second orchestration entrypoint.
+
+- With `COZE2DIFY_WORKBENCH_CHAT_API_KEY` and `COZE2DIFY_WORKBENCH_CHAT_MODEL` configured, the backend uses an OpenAI-compatible chat planner to map natural language into workbench actions.
+- Without those env vars, the endpoint falls back to local rule-based routing.
+- When no orchestration action is inferred, the existing sandbox Coze/Dify comparison path remains active.
+
 ### `POST /sync/conflicts/{id}/resolve`
 
 Manually resolve a sync conflict.

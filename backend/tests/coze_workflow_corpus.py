@@ -11,7 +11,7 @@ class CorpusCase:
     expected_supported: bool
     expected_manual_review: bool = False
     semantic_inputs: dict[str, Any] = field(default_factory=dict)
-    expected_terminal: dict[str, Any] | None = None
+    semantic_oracle: str | None = None
     golden_snapshot: str | None = None
 
 
@@ -114,7 +114,7 @@ def _output_emitter_case(name: str, *, literal: str | None = None) -> CorpusCase
         },
         expected_supported=True,
         semantic_inputs={"input": "hello world"},
-        expected_terminal={"answer": literal or "hello world"},
+        semantic_oracle=name,
         golden_snapshot=name,
     )
 
@@ -176,7 +176,7 @@ def _python_code_case() -> CorpusCase:
         expected_supported=True,
         expected_manual_review=True,
         semantic_inputs={"input": "hello world"},
-        expected_terminal={"answer": "HELLO WORLD"},
+        semantic_oracle="code_python_uppercase",
         golden_snapshot="code_python_uppercase",
     )
 
@@ -191,8 +191,78 @@ def _baseline_case() -> CorpusCase:
         },
         expected_supported=True,
         semantic_inputs={"input": "hello world"},
-        expected_terminal={},
+        semantic_oracle="baseline_start_end",
         golden_snapshot="baseline_start_end",
+    )
+
+
+def _chatflow_output_emitter_globals_case() -> CorpusCase:
+    return CorpusCase(
+        name="chatflow_output_emitter_globals",
+        canvas={
+            "mode": "chatflow",
+            "variables": [
+                {
+                    "name": "app_name",
+                    "type": "string",
+                    "source": "global_variable_app",
+                    "defaultValue": "Acme",
+                },
+                {
+                    "name": "memory",
+                    "type": "string",
+                    "source": "global_variable_user",
+                    "defaultValue": "Carry forward",
+                },
+            ],
+            "nodes": [
+                _start_node(),
+                {
+                    "id": "answer",
+                    "type": "13",
+                    "meta": {"position": {"x": 320, "y": 0}},
+                    "data": {
+                        "inputs": {
+                            "inputParameters": [
+                                {
+                                    "name": "part1",
+                                    "input": {
+                                        "type": "string",
+                                        "value": {"type": "literal", "content": "App"},
+                                    },
+                                },
+                                {
+                                    "name": "part2",
+                                    "input": {
+                                        "type": "string",
+                                        "value": _reference("", "app_name", source="global_variable_app"),
+                                    },
+                                },
+                                {
+                                    "name": "part3",
+                                    "input": {
+                                        "type": "string",
+                                        "value": {"type": "literal", "content": "Memory"},
+                                    },
+                                },
+                                {
+                                    "name": "part4",
+                                    "input": {
+                                        "type": "string",
+                                        "value": _reference("", "memory", source="global_variable_user"),
+                                    },
+                                },
+                            ]
+                        }
+                    },
+                },
+            ],
+            "edges": [_edge("start", "answer")],
+            "versions": {},
+        },
+        expected_supported=True,
+        semantic_inputs={"input": "ignored"},
+        semantic_oracle="chatflow_output_emitter_globals",
     )
 
 
@@ -215,7 +285,7 @@ def _comment_case() -> CorpusCase:
         },
         expected_supported=True,
         semantic_inputs={"input": "hello world"},
-        expected_terminal={},
+        semantic_oracle="comment_annotation",
     )
 
 
@@ -293,9 +363,10 @@ CORPUS_CASES: list[CorpusCase] = [
     _baseline_case(),
     _output_emitter_case("output_emitter_passthrough"),
     _output_emitter_case("output_emitter_literal_supported_duplicate", literal="fixed literal"),
+    _chatflow_output_emitter_globals_case(),
     _comment_case(),
     _python_code_case(),
     *[_blocked_case(name, type_id) for name, type_id in _BLOCKED_CASE_DEFS],
 ]
 
-assert len(CORPUS_CASES) == 42
+assert len(CORPUS_CASES) == 43

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from api.endpoints.workbench import service
 from api.router import api_router
+from core.workbench.chat_orchestrator import ChatAction, ChatPlan
 from db.database import Base, get_db
 from db.models import MigrationTask, SyncConfig
 
@@ -330,6 +331,77 @@ def test_workbench_tests_review_release_and_sandbox_mutations(tmp_path) -> None:
     unknown = client.post("/api/v1/workbench/workflows/not-real/sandbox/start")
     assert unknown.status_code == 404
     assert unknown.json()["detail"] == "Unknown workflow: not-real"
+
+
+def test_workbench_sandbox_chat_commands_can_trigger_migration_and_tests(tmp_path) -> None:
+    client = _make_client(_make_session_factory(tmp_path))
+
+    start = client.post("/api/v1/workbench/workflows/wf3/sandbox/start")
+    assert start.status_code == 200
+    assert start.json()["status"] == "running"
+
+    command = client.post(
+        "/api/v1/workbench/workflows/wf3/sandbox/messages",
+        json={"text": "帮我迁移当前工作流，然后生成测试并运行测试"},
+    )
+    assert command.status_code == 200
+    payload = command.json()
+
+    assert payload["status"] == "running"
+    assert [message["role"] for message in payload["messages"]] == [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+    ]
+    assert "已迁移工作流" in payload["messages"][1]["text"]
+    assert "已生成 1 条测试用例" in payload["messages"][2]["text"]
+    assert "已执行 7 条测试" in payload["messages"][3]["text"]
+
+    overview = client.get("/api/v1/workbench/overview?limit=10")
+    assert overview.status_code == 200
+    workflow = next(item for item in overview.json()["workflows"] if item["id"] == "wf3")
+    assert workflow["status"] == "testing"
+    assert workflow["difyId"] == "app-auto-ghi789"
+    assert workflow["migrated"] == 6
+
+    tests = client.get("/api/v1/workbench/workflows/wf3/tests")
+    assert tests.status_code == 200
+    assert len(tests.json()["cases"]) == 7
+
+
+def test_workbench_sandbox_can_execute_model_planned_actions(tmp_path) -> None:
+    client = _make_client(_make_session_factory(tmp_path))
+
+    class StubOrchestrator:
+        def plan(self, text: str, context) -> ChatPlan:
+            del text, context
+            return ChatPlan(
+                actions=[ChatAction(type="report_status")],
+                reply="已通过模型规划检查当前工作流。",
+            )
+
+    original_orchestrator = service._chat_orchestrator
+    service._chat_orchestrator = StubOrchestrator()
+    try:
+        start = client.post("/api/v1/workbench/workflows/wf3/sandbox/start")
+        assert start.status_code == 200
+
+        command = client.post(
+            "/api/v1/workbench/workflows/wf3/sandbox/messages",
+            json={"text": "把这个流程安排一下"},
+        )
+        assert command.status_code == 200
+        payload = command.json()
+        assert [message["role"] for message in payload["messages"]] == [
+            "user",
+            "assistant",
+            "assistant",
+        ]
+        assert "当前工作流" in payload["messages"][1]["text"]
+        assert payload["messages"][2]["text"] == "已通过模型规划检查当前工作流。"
+    finally:
+        service._chat_orchestrator = original_orchestrator
 
 
 def test_workbench_persisted_actions_use_real_summary_and_reject_demo_ids(tmp_path) -> None:

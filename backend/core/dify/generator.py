@@ -98,7 +98,11 @@ class DifyGenerator:
         all_edges = [edge for edge in all_edges if edge.source in emitted_node_ids and edge.target in emitted_node_ids]
 
         graph = DifyGraph(nodes=dify_nodes, edges=all_edges)
-        workflow = DifyWorkflow(graph=graph)
+        workflow = DifyWorkflow(
+            graph=graph,
+            conversation_variables=self._to_conversation_variables(normalized_workflow.global_variables),
+            environment_variables=self._to_environment_variables(normalized_workflow.global_variables),
+        )
 
         return DifyDSL(
             app={
@@ -414,6 +418,42 @@ class DifyGenerator:
             elif var.ref:
                 fragments.append(self.var_transformer.to_template(var.ref))
         return "\n".join(fragment for fragment in fragments if fragment)
+
+    def _to_environment_variables(self, variables: list[IRVariable]) -> list[dict[str, Any]]:
+        return [self._to_named_workflow_variable(var) for var in variables if var.scope == "global_app"]
+
+    def _to_conversation_variables(self, variables: list[IRVariable]) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for var in variables:
+            if var.scope != "global_user":
+                continue
+            item = self._to_named_workflow_variable(var)
+            item["selector"] = ["conversation", var.name]
+            result.append(item)
+        return result
+
+    def _to_named_workflow_variable(self, var: IRVariable) -> dict[str, Any]:
+        item: dict[str, Any] = {
+            "name": var.name,
+            "value_type": self._to_named_variable_type(var.var_type),
+            "value": var.default_value if var.default_value is not None else "",
+            "description": var.description,
+        }
+        return item
+
+    @staticmethod
+    def _to_named_variable_type(var_type: IRVariableType) -> str:
+        return {
+            IRVariableType.INTEGER: "number",
+            IRVariableType.FLOAT: "number",
+            IRVariableType.NUMBER: "number",
+            IRVariableType.BOOLEAN: "boolean",
+            IRVariableType.OBJECT: "object",
+            IRVariableType.ARRAY: "array",
+            IRVariableType.ARRAY_STRING: "array",
+            IRVariableType.ARRAY_NUMBER: "array",
+            IRVariableType.ARRAY_OBJECT: "array",
+        }.get(var_type, "string")
 
     @staticmethod
     def _get_composite_start_node_id(ir_node: IRNode) -> str:
