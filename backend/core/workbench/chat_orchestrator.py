@@ -40,8 +40,7 @@ class ChatPlan(BaseModel):
 
 
 class ChatPlanner(Protocol):
-    def plan(self, text: str, context: WorkflowChatContext) -> ChatPlan:
-        ...
+    def plan(self, text: str, context: WorkflowChatContext) -> ChatPlan: ...
 
 
 class RuleBasedChatPlanner:
@@ -63,9 +62,7 @@ class RuleBasedChatPlanner:
         wants_batch = any(keyword in normalized for keyword in ("批量", "全部", "所有", "all"))
 
         if wants_help:
-            return ChatPlan(
-                reply="可用指令: 迁移当前工作流, 批量迁移, 生成测试, 运行测试, 迁移并运行测试, 查看状态。"
-            )
+            return ChatPlan(reply="可用指令: 迁移当前工作流, 批量迁移, 生成测试, 运行测试, 迁移并运行测试, 查看状态。")
 
         actions: list[ChatAction] = []
         if wants_migrate:

@@ -378,14 +378,18 @@ class CozeParser:
 
     @staticmethod
     def _coerce_global_scope(raw_variable: dict[str, Any], *, fallback_scope: str | None) -> str:
-        raw_scope = str(
-            raw_variable.get("source")
-            or raw_variable.get("sourceType")
-            or raw_variable.get("scope")
-            or raw_variable.get("variableScope")
-            or fallback_scope
-            or "global_app"
-        ).strip().lower()
+        raw_scope = (
+            str(
+                raw_variable.get("source")
+                or raw_variable.get("sourceType")
+                or raw_variable.get("scope")
+                or raw_variable.get("variableScope")
+                or fallback_scope
+                or "global_app"
+            )
+            .strip()
+            .lower()
+        )
 
         if raw_scope in {"global_variable_user", "global_user", "user", "conversation", "conversation_variable"}:
             return "global_user"

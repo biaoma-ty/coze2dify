@@ -592,9 +592,7 @@ class WorkbenchService:
         limit: int = 50,
     ) -> dict[str, Any]:
         self._require_workflow(workflow_id, db)
-        workflow = next(
-            item for item in self._get_visible_workflows(db, limit=limit) if item["id"] == workflow_id
-        )
+        workflow = next(item for item in self._get_visible_workflows(db, limit=limit) if item["id"] == workflow_id)
         return deepcopy(workflow)
 
     def _mark_workflow_migrated(self, workflow: dict[str, Any]) -> None:

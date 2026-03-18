@@ -229,7 +229,9 @@ class LLMNodeParser:
             if key in supported_keys or not cls._has_meaningful_value(value):
                 continue
             normalized = key.replace("_", "").lower()
-            if any(token in normalized for token in ("prompt", "message", "memory", "history", "context", "roleprefix")):
+            if any(
+                token in normalized for token in ("prompt", "message", "memory", "history", "context", "roleprefix")
+            ):
                 flagged.append(str(key))
         return list(dict.fromkeys(flagged))
 

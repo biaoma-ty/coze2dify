@@ -186,7 +186,11 @@ def _build_ir_scopes(workflow: IRWorkflow, inputs: dict[str, Any]) -> dict[str, 
 
 
 def _build_dify_scopes(dsl: DifyDSL, inputs: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    env = {variable.get("name"): variable.get("value") for variable in dsl.workflow.environment_variables if isinstance(variable, dict)}
+    env = {
+        variable.get("name"): variable.get("value")
+        for variable in dsl.workflow.environment_variables
+        if isinstance(variable, dict)
+    }
     conversation = {
         variable.get("name"): variable.get("value")
         for variable in dsl.workflow.conversation_variables
