@@ -214,6 +214,8 @@ chmod 600 "${BACKEND_DB_PATH}" || true
 (
   cd "${ROOT_DIR}/backend"
   COZE2DIFY_DATABASE_URL="sqlite:///${BACKEND_DB_PATH}" \
+    "${BACKEND_PYTHON}" -m alembic upgrade head
+  COZE2DIFY_DATABASE_URL="sqlite:///${BACKEND_DB_PATH}" \
     "${BACKEND_PYTHON}" -m uvicorn main:app --host 127.0.0.1 --port "${BACKEND_PORT}" \
     >"${BACKEND_LOG}" 2>&1
 ) &
