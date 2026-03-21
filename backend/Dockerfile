@@ -16,4 +16,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python -m alembic upgrade head && exec uvicorn main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "python -m alembic -x db_url=\"${COZE2DIFY_DATABASE_URL}\" upgrade head && exec uvicorn main:app --host 0.0.0.0 --port 8000"]
