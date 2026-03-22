@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # App
     app_name: str = "coze2dify"
-    debug: bool = True
+    debug: bool = False
 
     # Project database (migration history, sync config)
     database_url: str = "sqlite:///./coze2dify.db"

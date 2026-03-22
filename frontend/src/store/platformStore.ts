@@ -74,6 +74,11 @@ type PlatformStoreData = Omit<
   | "reset"
 >;
 
+type PersistedPlatformState = Pick<
+  PlatformStoreData,
+  "cozeApiBase" | "cozeSelectedSpace" | "difyApiBase" | "difySelectedAppId" | "activeTab"
+>;
+
 const initialState: PlatformStoreData = {
   cozeToken: "",
   cozeApiBase: "https://api.coze.com",
@@ -100,43 +105,62 @@ const initialState: PlatformStoreData = {
   activeTab: "coze",
 };
 
-export const usePlatformStore = create<PlatformState>()(
-  persist((set) => ({
+function partializePlatformState(state: PlatformState): PersistedPlatformState {
+  return {
+    cozeApiBase: state.cozeApiBase,
+    cozeSelectedSpace: state.cozeSelectedSpace,
+    difyApiBase: state.difyApiBase,
+    difySelectedAppId: state.difySelectedAppId,
+    activeTab: state.activeTab,
+  };
+}
+
+function migratePlatformState(persistedState: unknown): PlatformStoreData {
+  const state = (persistedState ?? {}) as Partial<PlatformStoreData>;
+
+  return {
     ...initialState,
-  setCozeCredentials: (token, apiBase) =>
-    set({ cozeToken: token, cozeApiBase: apiBase }),
+    cozeApiBase:
+      typeof state.cozeApiBase === "string" && state.cozeApiBase
+        ? state.cozeApiBase
+        : initialState.cozeApiBase,
+    cozeSelectedSpace: typeof state.cozeSelectedSpace === "string" ? state.cozeSelectedSpace : "",
+    difyApiBase: typeof state.difyApiBase === "string" ? state.difyApiBase : "",
+    difySelectedAppId: typeof state.difySelectedAppId === "string" ? state.difySelectedAppId : "",
+    activeTab: state.activeTab === "dify" ? "dify" : "coze",
+  };
+}
 
-  setCozeConnected: (connected, workspaces) =>
-    set({ cozeConnected: connected, cozeWorkspaces: workspaces }),
-
-  setCozeSelectedSpace: (spaceId) => set({ cozeSelectedSpace: spaceId }),
-
-  setCozeWorkflows: (workflows) => set({ cozeWorkflows: workflows }),
-
-  setDifyCredentials: (apiBase, apiKey) =>
-    set({ difyApiBase: apiBase, difyApiKey: apiKey }),
-
-  setDifyConnected: (connected) => set({ difyConnected: connected }),
-
-  setDifyApps: (apps) => set({ difyApps: apps }),
-
-  setDifySelectedApp: (appId) => set({ difySelectedAppId: appId }),
-
-  setCozeDb: (url, connected) =>
-    set({ cozeDbUrl: url, cozeDbConnected: connected }),
-
-  setDifyDb: (url, connected) =>
-    set({ difyDbUrl: url, difyDbConnected: connected }),
-
-  setDevMode: (enabled, coze, dify) =>
-    set({ devModeEnabled: enabled, detectedCoze: coze, detectedDify: dify }),
-
-  setActiveTab: (tab) => set({ activeTab: tab }),
-
-  reset: () =>
-    set(initialState),
-  }), {
-    name: "coze2dify-platform",
-    storage: createJSONStorage(() => sessionStorage),
-  }),
+export const usePlatformStore = create<PlatformState>()(
+  persist(
+    (set) => ({
+      ...initialState,
+      setCozeCredentials: (token, apiBase) =>
+        set({ cozeToken: token, cozeApiBase: apiBase }),
+      setCozeConnected: (connected, workspaces) =>
+        set({ cozeConnected: connected, cozeWorkspaces: workspaces }),
+      setCozeSelectedSpace: (spaceId) => set({ cozeSelectedSpace: spaceId }),
+      setCozeWorkflows: (workflows) => set({ cozeWorkflows: workflows }),
+      setDifyCredentials: (apiBase, apiKey) =>
+        set({ difyApiBase: apiBase, difyApiKey: apiKey }),
+      setDifyConnected: (connected) => set({ difyConnected: connected }),
+      setDifyApps: (apps) => set({ difyApps: apps }),
+      setDifySelectedApp: (appId) => set({ difySelectedAppId: appId }),
+      setCozeDb: (url, connected) =>
+        set({ cozeDbUrl: url, cozeDbConnected: connected }),
+      setDifyDb: (url, connected) =>
+        set({ difyDbUrl: url, difyDbConnected: connected }),
+      setDevMode: (enabled, coze, dify) =>
+        set({ devModeEnabled: enabled, detectedCoze: coze, detectedDify: dify }),
+      setActiveTab: (tab) => set({ activeTab: tab }),
+      reset: () => set(initialState),
+    }),
+    {
+      name: "coze2dify-platform",
+      version: 1,
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: partializePlatformState,
+      migrate: migratePlatformState,
+    },
+  ),
 );
