@@ -15,13 +15,13 @@ dev: ## Start backend + frontend dev servers
 	@echo "Starting backend..."
 	cd backend && uvicorn main:app --reload --port 8000 &
 	@echo "Starting frontend..."
-	cd frontend && npm run dev
+	cd frontend && PORT="$${PORT:-5173}" npm run dev
 
 dev-backend: ## Start backend dev server only
 	cd backend && uvicorn main:app --reload --port 8000
 
 dev-frontend: ## Start frontend dev server only
-	cd frontend && npm run dev
+	cd frontend && PORT="$${PORT:-5173}" npm run dev
 
 # ── Build ────────────────────────────────────────────
 build: build-frontend ## Build all
