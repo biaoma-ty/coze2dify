@@ -1,6 +1,8 @@
+import inspect
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
@@ -114,6 +116,13 @@ class FakeConversionService:
             "mode": snapshot["write_result"]["mode"],
             "status": task.status,
         }
+
+
+def test_sync_routes_run_on_sync_handlers() -> None:
+    routes = [route for route in sync_endpoints.router.routes if isinstance(route, APIRoute)]
+
+    assert routes
+    assert all(not inspect.iscoroutinefunction(route.endpoint) for route in routes)
 
 
 def test_sync_execute_endpoint_persists_history_and_exposes_detail(tmp_path, monkeypatch) -> None:

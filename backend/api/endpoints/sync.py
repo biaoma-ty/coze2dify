@@ -45,7 +45,7 @@ class ConflictResolveRequest(BaseModel):
 
 
 @router.post("/config")
-async def create_sync_config(
+def create_sync_config(
     req: SyncConfigRequest,
     db: Session = Depends(get_db),
 ):
@@ -54,14 +54,14 @@ async def create_sync_config(
 
 
 @router.get("/config")
-async def get_sync_config(db: Session = Depends(get_db)):
+def get_sync_config(db: Session = Depends(get_db)):
     stmt = select(SyncConfig).order_by(SyncConfig.updated_at.desc(), SyncConfig.id.desc())
     config = db.execute(stmt).scalars().first()
     return {"config": _serialize_config(config) if config else None}
 
 
 @router.post("/config/test")
-async def test_connections(
+def test_connections(
     req: SyncConfigRequest,
     db: Session = Depends(get_db),
 ):
@@ -76,7 +76,7 @@ async def test_connections(
 
 
 @router.post("/execute")
-async def execute_sync(
+def execute_sync(
     req: SyncConfigRequest,
     db: Session = Depends(get_db),
 ):
@@ -85,7 +85,7 @@ async def execute_sync(
 
 
 @router.get("/status")
-async def get_sync_status(db: Session = Depends(get_db)):
+def get_sync_status(db: Session = Depends(get_db)):
     stmt = select(SyncHistory).order_by(SyncHistory.started_at.desc(), SyncHistory.id.desc())
     latest = db.execute(stmt).scalars().first()
     if latest is None:
@@ -94,7 +94,7 @@ async def get_sync_status(db: Session = Depends(get_db)):
 
 
 @router.get("/history")
-async def get_sync_history(
+def get_sync_history(
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
@@ -104,7 +104,7 @@ async def get_sync_history(
 
 
 @router.get("/history/{history_id}")
-async def get_sync_detail(
+def get_sync_detail(
     history_id: str,
     db: Session = Depends(get_db),
 ):
@@ -112,7 +112,7 @@ async def get_sync_detail(
 
 
 @router.post("/schedule")
-async def set_schedule(
+def set_schedule(
     req: SyncScheduleRequest,
     db: Session = Depends(get_db),
 ):
@@ -122,7 +122,7 @@ async def set_schedule(
 
 
 @router.delete("/schedule")
-async def cancel_schedule(
+def cancel_schedule(
     config_id: int = Query(..., ge=1),
     db: Session = Depends(get_db),
 ):
@@ -140,7 +140,7 @@ async def cancel_schedule(
 
 
 @router.post("/diff")
-async def preview_diff(
+def preview_diff(
     req: SyncConfigRequest,
     db: Session = Depends(get_db),
 ):
@@ -149,7 +149,7 @@ async def preview_diff(
 
 
 @router.post("/conflicts/{conflict_id}/resolve")
-async def resolve_conflict(
+def resolve_conflict(
     conflict_id: str,
     req: ConflictResolveRequest,
     db: Session = Depends(get_db),
