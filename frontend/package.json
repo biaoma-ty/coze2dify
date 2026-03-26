@@ -8,6 +8,8 @@
     "dev": "max dev",
     "build": "max build",
     "lint": "max lint --eslint-only \"src/{api,store,types}/**/*.{ts,tsx}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "postinstall": "max setup",
     "e2e:smoke": "playwright test"
   },
@@ -34,6 +36,7 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "less": "^4.4.1",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^3.2.4"
   }
 }

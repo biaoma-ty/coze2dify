@@ -35,7 +35,8 @@ test: test-backend test-frontend ## Run all tests
 test-backend: ## Run backend tests
 	cd backend && pytest -v --tb=short
 
-test-frontend: ## Run frontend type check
+test-frontend: ## Run frontend unit tests and type check
+	cd frontend && npm run test
 	cd frontend && npx tsc --noEmit
 
 # ── Lint & Format ────────────────────────────────────

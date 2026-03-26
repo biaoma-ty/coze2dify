@@ -65,9 +65,11 @@ run_python_matrix_import
 
 run_backend_checks
 
-log_section "Frontend build"
+log_section "Frontend tests and build"
 (
   cd "${ROOT_DIR}/frontend"
+  npm run test
+  npx tsc --noEmit
   npm run build
 )
 
