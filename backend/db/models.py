@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from sqlalchemy import JSON, TEXT, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from core.security.db_url_crypto import EncryptedDatabaseUrl
+
 from .database import Base
 
 
@@ -16,8 +18,8 @@ class SyncConfig(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255))
     coze_db_type: Mapped[str] = mapped_column(String(50), default="postgresql")
-    coze_db_url: Mapped[str] = mapped_column(String(500))
-    dify_db_url: Mapped[str] = mapped_column(String(500))
+    coze_db_url: Mapped[str] = mapped_column(EncryptedDatabaseUrl())
+    dify_db_url: Mapped[str] = mapped_column(EncryptedDatabaseUrl())
     sync_mode: Mapped[str] = mapped_column(String(50), default="manual")
     delete_mode: Mapped[str] = mapped_column(String(50), default="observe_only")
     cron_expression: Mapped[str | None] = mapped_column(String(100), nullable=True)

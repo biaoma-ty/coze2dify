@@ -176,14 +176,22 @@ def _upsert_sync_config(db: Session, req: SyncConfigRequest) -> SyncConfig:
         stmt = (
             select(SyncConfig)
             .where(
-                SyncConfig.coze_db_url == req.coze_db_url,
-                SyncConfig.dify_db_url == req.dify_db_url,
                 SyncConfig.sync_mode == req.sync_mode,
                 SyncConfig.delete_mode == delete_mode.value,
             )
             .order_by(SyncConfig.updated_at.desc(), SyncConfig.id.desc())
         )
-        config = db.execute(stmt).scalars().first()
+        requested_coze_db_url = req.coze_db_url.strip()
+        requested_dify_db_url = req.dify_db_url.strip()
+        candidates = db.execute(stmt).scalars().all()
+        config = next(
+            (
+                candidate
+                for candidate in candidates
+                if candidate.coze_db_url == requested_coze_db_url and candidate.dify_db_url == requested_dify_db_url
+            ),
+            None,
+        )
 
     coze_db_url, dify_db_url = _resolve_requested_urls(config, req)
 

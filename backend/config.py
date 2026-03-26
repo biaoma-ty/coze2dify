@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     # Project database (migration history, sync config)
     database_url: str = "sqlite:///./coze2dify.db"
+    db_url_encryption_key: str = ""
 
     # Coze API
     coze_api_base: str = "https://api.coze.com"
