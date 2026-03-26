@@ -49,9 +49,7 @@ def decrypt_database_url(value: str | None) -> str | None:
     try:
         return _get_fernet().decrypt(token.encode("utf-8")).decode("utf-8")
     except InvalidToken as exc:  # noqa: BLE001 - surface actionable config error upstream
-        raise RuntimeError(
-            "Unable to decrypt persisted sync DB URLs. Check COZE2DIFY_DB_URL_ENCRYPTION_KEY."
-        ) from exc
+        raise RuntimeError("Unable to decrypt persisted sync DB URLs. Check COZE2DIFY_DB_URL_ENCRYPTION_KEY.") from exc
 
 
 class EncryptedDatabaseUrl(TypeDecorator[str]):
