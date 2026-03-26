@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import uuid
 from typing import Any
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import DateTime, bindparam, create_engine, text
 
 from .models import DifyDSL
 
@@ -28,7 +28,8 @@ class DifyDbWriter:
 
             # Create app
             conn.execute(
-                text("""
+                self._with_timestamp_params(
+                    text("""
                     INSERT INTO apps (
                         id, tenant_id, name, mode, description, icon, icon_background,
                         icon_type, workflow_id, enable_site, enable_api,
@@ -42,6 +43,9 @@ class DifyDbWriter:
                         :created_by, :updated_by, :created_at, :updated_at
                     )
                 """),
+                    "created_at",
+                    "updated_at",
+                ),
                 {
                     "id": app_id,
                     "tenant_id": tenant_id,
@@ -75,7 +79,8 @@ class DifyDbWriter:
             workflow_type = "workflow" if app_config.get("mode", "workflow") == "workflow" else "chat"
 
             conn.execute(
-                text("""
+                self._with_timestamp_params(
+                    text("""
                     INSERT INTO workflows (
                         id, tenant_id, app_id, type, version, graph, features,
                         created_by, updated_by, created_at, updated_at,
@@ -89,6 +94,9 @@ class DifyDbWriter:
                         :marked_name, :marked_comment
                     )
                 """),
+                    "created_at",
+                    "updated_at",
+                ),
                 {
                     "id": workflow_id,
                     "tenant_id": tenant_id,
@@ -123,7 +131,8 @@ class DifyDbWriter:
         with self.engine.begin() as conn:
             _, account_id = self._ensure_owner_context(conn)
             app_result = conn.execute(
-                text("""
+                self._with_timestamp_params(
+                    text("""
                     UPDATE apps
                     SET name = :name,
                         mode = :mode,
@@ -135,6 +144,8 @@ class DifyDbWriter:
                         updated_at = :updated_at
                     WHERE id = :app_id
                 """),
+                    "updated_at",
+                ),
                 {
                     "name": app_config.get("name", ""),
                     "mode": app_config.get("mode", "workflow"),
@@ -151,7 +162,8 @@ class DifyDbWriter:
                 raise LookupError(f"Dify app {app_id} not found for update")
 
             workflow_result = conn.execute(
-                text("""
+                self._with_timestamp_params(
+                    text("""
                     UPDATE workflows
                     SET graph = :graph,
                         features = :features,
@@ -162,6 +174,8 @@ class DifyDbWriter:
                         updated_at = :updated_at
                     WHERE app_id = :app_id
                 """),
+                    "updated_at",
+                ),
                 {
                     "graph": graph_json,
                     "features": features_json,
@@ -213,7 +227,8 @@ class DifyDbWriter:
             account_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc).replace(tzinfo=None)
             conn.execute(
-                text("""
+                self._with_timestamp_params(
+                    text("""
                     INSERT INTO accounts (
                         id, name, email, status, initialized_at,
                         created_at, updated_at, last_active_at,
@@ -225,6 +240,11 @@ class DifyDbWriter:
                         :interface_language, :interface_theme, :timezone
                     )
                 """),
+                    "initialized_at",
+                    "created_at",
+                    "updated_at",
+                    "last_active_at",
+                ),
                 {
                     "id": account_id,
                     "name": "coze2dify",
@@ -245,10 +265,14 @@ class DifyDbWriter:
             tenant_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc).replace(tzinfo=None)
             conn.execute(
-                text("""
+                self._with_timestamp_params(
+                    text("""
                     INSERT INTO tenants (id, name, plan, status, created_at, updated_at)
                     VALUES (:id, :name, :plan, :status, :created_at, :updated_at)
                 """),
+                    "created_at",
+                    "updated_at",
+                ),
                 {
                     "id": tenant_id,
                     "name": "coze2dify",
@@ -298,3 +322,9 @@ class DifyDbWriter:
             payload[key] = variable
 
         return json.dumps(payload, ensure_ascii=False)
+
+    @staticmethod
+    def _with_timestamp_params(statement: Any, *param_names: str) -> Any:
+        return statement.bindparams(
+            *(bindparam(param_name, type_=DateTime()) for param_name in param_names),
+        )
