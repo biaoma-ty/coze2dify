@@ -31,7 +31,7 @@ class WriteToDifyRequest(BaseModel):
 
 
 @router.get("")
-async def list_conversions(
+def list_conversions(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -73,7 +73,7 @@ async def convert_workflow_from_api(
 
 
 @router.post("/from-db")
-async def convert_workflow_from_db(
+def convert_workflow_from_db(
     req: DbConversionRequest,
     db: Session = Depends(get_db),
 ):
@@ -87,7 +87,7 @@ async def convert_workflow_from_db(
 
 
 @router.get("/{conversion_id}")
-async def get_conversion(
+def get_conversion(
     conversion_id: str,
     db: Session = Depends(get_db),
 ):
@@ -98,7 +98,7 @@ async def get_conversion(
 
 
 @router.get("/{conversion_id}/dsl")
-async def download_dsl(
+def download_dsl(
     conversion_id: str,
     db: Session = Depends(get_db),
 ):
@@ -115,7 +115,7 @@ async def download_dsl(
 
 
 @router.get("/{conversion_id}/report")
-async def get_report(
+def get_report(
     conversion_id: str,
     db: Session = Depends(get_db),
 ):
@@ -126,7 +126,7 @@ async def get_report(
 
 
 @router.post("/{conversion_id}/write-to-dify")
-async def write_to_dify(
+def write_to_dify(
     conversion_id: str,
     req: WriteToDifyRequest,
     db: Session = Depends(get_db),
