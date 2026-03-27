@@ -138,6 +138,7 @@ PORT=5173 npm run dev
 If you already have a local `coze2dify.db` that was created by the old startup-time `create_all()` path, run `python -m alembic stamp head` once before applying future migrations.
 
 The frontend runs on Umi only. Keep local development on `PORT=5173` so it does not clash with the backend on `8000`. `API_PROXY_TARGET` controls the Umi dev proxy target and `UMI_APP_API_BASE_URL` controls the API base URL baked into production builds. See [`frontend/.env.template`](frontend/.env.template) for the supported variables.
+Backend debug logging is off by default. To enable verbose backend and SQL logging locally, start the server with `COZE2DIFY_DEBUG=true uvicorn main:app --reload`.
 
 ## 📖 API Reference
 
