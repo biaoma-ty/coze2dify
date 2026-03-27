@@ -30,7 +30,7 @@ class SandboxMessageRequest(BaseModel):
 
 
 @router.get("/overview")
-async def get_workbench_overview(
+def get_workbench_overview(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
@@ -38,12 +38,12 @@ async def get_workbench_overview(
 
 
 @router.post("/batch-migrate")
-async def batch_migrate_workflows(db: Session = Depends(get_db)):
+def batch_migrate_workflows(db: Session = Depends(get_db)):
     return service.batch_migrate(db)
 
 
 @router.get("/workflows/{workflow_id}/topology")
-async def get_workflow_topology(workflow_id: str, db: Session = Depends(get_db)):
+def get_workflow_topology(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.get_topology(workflow_id, db)
     except LookupError as exc:
@@ -51,7 +51,7 @@ async def get_workflow_topology(workflow_id: str, db: Session = Depends(get_db))
 
 
 @router.get("/workflows/{workflow_id}/equivalence")
-async def get_workflow_equivalence(workflow_id: str, db: Session = Depends(get_db)):
+def get_workflow_equivalence(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.get_equivalence(workflow_id, db)
     except LookupError as exc:
@@ -59,7 +59,7 @@ async def get_workflow_equivalence(workflow_id: str, db: Session = Depends(get_d
 
 
 @router.get("/workflows/{workflow_id}/tests")
-async def get_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
+def get_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.get_tests(workflow_id, db)
     except LookupError as exc:
@@ -67,7 +67,7 @@ async def get_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/workflows/{workflow_id}/tests/generate")
-async def generate_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
+def generate_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.generate_tests(workflow_id, db)
     except LookupError as exc:
@@ -75,7 +75,7 @@ async def generate_workflow_tests(workflow_id: str, db: Session = Depends(get_db
 
 
 @router.post("/workflows/{workflow_id}/tests/run")
-async def run_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
+def run_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.run_tests(workflow_id, db)
     except LookupError as exc:
@@ -83,7 +83,7 @@ async def run_workflow_tests(workflow_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/workflows/{workflow_id}/knowledge")
-async def get_workflow_knowledge(workflow_id: str, db: Session = Depends(get_db)):
+def get_workflow_knowledge(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.get_knowledge(workflow_id, db)
     except LookupError as exc:
@@ -91,7 +91,7 @@ async def get_workflow_knowledge(workflow_id: str, db: Session = Depends(get_db)
 
 
 @router.get("/workflows/{workflow_id}/review")
-async def get_workflow_review(workflow_id: str, db: Session = Depends(get_db)):
+def get_workflow_review(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.get_review_queue(workflow_id, db)
     except LookupError as exc:
@@ -99,7 +99,7 @@ async def get_workflow_review(workflow_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/workflows/{workflow_id}/review/{review_id}")
-async def update_review_verdict(
+def update_review_verdict(
     workflow_id: str,
     review_id: str,
     req: ReviewVerdictRequest,
@@ -112,7 +112,7 @@ async def update_review_verdict(
 
 
 @router.get("/workflows/{workflow_id}/release")
-async def get_workflow_release(workflow_id: str, db: Session = Depends(get_db)):
+def get_workflow_release(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.get_release(workflow_id, db)
     except LookupError as exc:
@@ -120,7 +120,7 @@ async def get_workflow_release(workflow_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/workflows/{workflow_id}/release/traffic")
-async def update_workflow_traffic(
+def update_workflow_traffic(
     workflow_id: str,
     req: TrafficRequest,
     db: Session = Depends(get_db),
@@ -134,7 +134,7 @@ async def update_workflow_traffic(
 
 
 @router.post("/workflows/{workflow_id}/release/rollback")
-async def rollback_workflow_release(
+def rollback_workflow_release(
     workflow_id: str,
     req: RollbackRequest,
     db: Session = Depends(get_db),
@@ -146,7 +146,7 @@ async def rollback_workflow_release(
 
 
 @router.get("/workflows/{workflow_id}/sandbox")
-async def get_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
+def get_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.get_sandbox(workflow_id, db)
     except LookupError as exc:
@@ -154,7 +154,7 @@ async def get_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/workflows/{workflow_id}/sandbox/start")
-async def start_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
+def start_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.start_sandbox(workflow_id, db)
     except LookupError as exc:
@@ -162,7 +162,7 @@ async def start_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)
 
 
 @router.post("/workflows/{workflow_id}/sandbox/stop")
-async def stop_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
+def stop_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db)):
     try:
         return service.stop_sandbox(workflow_id, db)
     except LookupError as exc:
@@ -170,7 +170,7 @@ async def stop_workflow_sandbox(workflow_id: str, db: Session = Depends(get_db))
 
 
 @router.post("/workflows/{workflow_id}/sandbox/messages")
-async def send_workflow_sandbox_message(
+def send_workflow_sandbox_message(
     workflow_id: str,
     req: SandboxMessageRequest,
     db: Session = Depends(get_db),

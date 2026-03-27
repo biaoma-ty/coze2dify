@@ -1,10 +1,13 @@
+import inspect
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from api.endpoints.workbench import router as workbench_router
 from api.endpoints.workbench import service
 from api.router import api_router
 from core.workbench.chat_orchestrator import ChatAction, ChatPlan
@@ -124,6 +127,13 @@ def _seed_overview_history(db: Session) -> None:
         ]
     )
     db.commit()
+
+
+def test_workbench_routes_run_on_sync_handlers() -> None:
+    routes = [route for route in workbench_router.routes if isinstance(route, APIRoute)]
+
+    assert routes
+    assert all(not inspect.iscoroutinefunction(route.endpoint) for route in routes)
 
 
 def test_workbench_overview_aggregates_real_conversion_history(tmp_path) -> None:
