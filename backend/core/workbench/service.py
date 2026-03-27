@@ -7,8 +7,6 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from db.models import MigrationTask
-
 from .chat_orchestrator import ChatAction, ChatPlan, WorkbenchChatOrchestrator, WorkflowChatContext
 from .data import (
     EQUIVALENCE,
@@ -20,19 +18,20 @@ from .data import (
     SANDBOX_METRICS,
     TEST_CASES,
     TOPOLOGY,
-    WORKFLOWS,
 )
+from .overview_provider import WorkbenchOverviewProvider
 
 
 class WorkbenchService:
     def __init__(self) -> None:
         self._lock = RLock()
         self._chat_orchestrator = WorkbenchChatOrchestrator()
+        self._overview_provider = WorkbenchOverviewProvider()
         self.reset()
 
     def reset(self) -> None:
         with self._lock:
-            self._workflows = deepcopy(WORKFLOWS)
+            self._demo_workflows = self._overview_provider.load_demo_workflows()
             self._workflow_overrides: dict[str, dict[str, Any]] = {}
             self._test_cases = deepcopy(TEST_CASES)
             self._review_queue = deepcopy(REVIEW_QUEUE)
@@ -41,7 +40,7 @@ class WorkbenchService:
 
     def get_overview(self, db: Session | None = None, *, limit: int = 50) -> dict[str, Any]:
         workflows = self._get_visible_workflows(db, limit=limit)
-        if db is not None and self._has_persisted_overview(db):
+        if self._overview_provider.has_persisted_workflows(db):
             pending_reviews = sum(1 for workflow in workflows if workflow.get("requiresManualReview"))
             return {
                 "summary": self._build_summary(workflows, pending_reviews=pending_reviews),
@@ -55,11 +54,12 @@ class WorkbenchService:
 
     def batch_migrate(self, db: Session | None = None, *, limit: int = 50) -> dict[str, Any]:
         with self._lock:
-            if db is not None and self._has_persisted_overview(db):
-                for workflow in self._load_persisted_overview(db, limit=limit):
+            if self._overview_provider.has_persisted_workflows(db):
+                assert db is not None
+                for workflow in self._overview_provider.load_persisted_workflows(db, limit=limit):
                     self._mark_workflow_migrated(workflow)
             else:
-                for workflow in self._workflows:
+                for workflow in self._demo_workflows:
                     self._mark_workflow_migrated(workflow)
         return self.get_overview(db, limit=limit)
 
@@ -72,13 +72,16 @@ class WorkbenchService:
     ) -> dict[str, Any]:
         self._require_workflow(workflow_id, db)
         with self._lock:
-            if db is not None and self._has_persisted_overview(db):
+            if self._overview_provider.has_persisted_workflows(db):
+                assert db is not None
                 workflow = next(
-                    item for item in self._load_persisted_overview(db, limit=limit) if item["id"] == workflow_id
+                    item
+                    for item in self._overview_provider.load_persisted_workflows(db, limit=limit)
+                    if item["id"] == workflow_id
                 )
                 self._mark_workflow_migrated(workflow)
             else:
-                workflow = next(item for item in self._workflows if item["id"] == workflow_id)
+                workflow = next(item for item in self._demo_workflows if item["id"] == workflow_id)
                 self._mark_workflow_migrated(workflow)
         return self._get_visible_workflow(workflow_id, db, limit=limit)
 
@@ -305,64 +308,11 @@ class WorkbenchService:
         *,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
-        if db is not None and self._has_persisted_overview(db):
-            workflows = self._load_persisted_overview(db, limit=limit)
+        if self._overview_provider.has_persisted_workflows(db):
+            assert db is not None
+            workflows = self._overview_provider.load_persisted_workflows(db, limit=limit)
             return self._apply_workflow_overrides(workflows)
-        return deepcopy(self._workflows[:limit])
-
-    def _load_persisted_overview(self, db: Session, *, limit: int) -> list[dict[str, Any]]:
-        tasks = (
-            db.query(MigrationTask)
-            .filter(MigrationTask.sync_config_id.is_(None))
-            .order_by(
-                MigrationTask.completed_at.desc(),
-                MigrationTask.created_at.desc(),
-                MigrationTask.id.desc(),
-            )
-            .limit(limit)
-            .all()
-        )
-        return [self._serialize_task(task) for task in tasks]
-
-    def _serialize_task(self, task: MigrationTask) -> dict[str, Any]:
-        report = task.report or {}
-        snapshot = task.ir_snapshot or {}
-        write_result = snapshot.get("write_result") if isinstance(snapshot, dict) else None
-        if not isinstance(write_result, dict):
-            write_result = {}
-
-        nodes = int(report.get("total_nodes") or 0)
-        mapped = int(report.get("mapped_count") or 0)
-        partial = int(report.get("partial_count") or 0)
-        skipped = int(report.get("skipped_count") or 0)
-        migrated = mapped + partial
-        failed = max(nodes - migrated - skipped, 0)
-        score = 0.0
-        if nodes > 0:
-            score = round(((mapped + (partial * 0.5)) / nodes) * 100, 1)
-
-        source_workflow_id = _coerce_optional_string(task.source_workflow_id) or str(task.id)
-        return {
-            "id": source_workflow_id,
-            "conversionId": str(task.id),
-            "name": str(report.get("workflow_name") or task.source_workflow_name or task.source_workflow_id or task.id),
-            "cozeId": source_workflow_id,
-            "difyId": _coerce_optional_string(write_result.get("app_id")),
-            "status": self._derive_status(
-                task_status=task.status,
-                supported=bool(report.get("supported", False)),
-                requires_manual_review=bool(report.get("requires_manual_review", False)),
-                write_status=str(write_result.get("status") or ""),
-            ),
-            "nodes": nodes,
-            "migrated": migrated,
-            "failed": failed,
-            "score": score,
-            "complexity": self._derive_complexity(nodes),
-            "lastSync": task.completed_at.isoformat() if task.completed_at else None,
-            "sourceType": task.source_type,
-            "requiresManualReview": bool(report.get("requires_manual_review", False)),
-        }
+        return deepcopy(self._demo_workflows[:limit])
 
     def _build_summary(
         self,
@@ -557,26 +507,6 @@ class WorkbenchService:
         total = sum(ord(char) for char in text)
         return 800 + (total % 1201), 600 + (total % 1001)
 
-    def _has_persisted_overview(self, db: Session) -> bool:
-        return db.query(MigrationTask.id).filter(MigrationTask.sync_config_id.is_(None)).first() is not None
-
-    def _find_persisted_task(self, db: Session, workflow_id: str) -> MigrationTask | None:
-        task = (
-            db.query(MigrationTask)
-            .filter(MigrationTask.sync_config_id.is_(None))
-            .filter(MigrationTask.source_workflow_id == workflow_id)
-            .order_by(MigrationTask.id.desc())
-            .first()
-        )
-        if task is not None or not workflow_id.isdigit():
-            return task
-        return (
-            db.query(MigrationTask)
-            .filter(MigrationTask.sync_config_id.is_(None))
-            .filter(MigrationTask.id == int(workflow_id))
-            .first()
-        )
-
     def _apply_workflow_overrides(self, workflows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
         for workflow in workflows:
@@ -601,7 +531,7 @@ class WorkbenchService:
 
         patch = self._build_batch_migrate_patch(workflow)
         workflow_id = str(workflow["id"])
-        if any(item["id"] == workflow_id for item in self._workflows):
+        if any(item["id"] == workflow_id for item in self._demo_workflows):
             workflow.update(patch)
             return
 
@@ -635,46 +565,14 @@ class WorkbenchService:
             "lastSync": "2026-03-13",
         }
 
-    @staticmethod
-    def _derive_status(
-        *,
-        task_status: str,
-        supported: bool,
-        requires_manual_review: bool,
-        write_status: str,
-    ) -> str:
-        if task_status in {"failed", "blocked", "write_failed"} or not supported:
-            return "failed"
-        if write_status == "succeeded" and task_status in {"written", "updated"}:
-            return "verified"
-        if task_status in {"pending", "running"}:
-            return "pending"
-        if requires_manual_review:
-            return "testing"
-        return "migrated"
-
-    @staticmethod
-    def _derive_complexity(nodes: int) -> str:
-        if nodes >= 12:
-            return "high"
-        if nodes >= 7:
-            return "medium"
-        return "low"
-
     def _require_workflow(self, workflow_id: str, db: Session | None = None) -> None:
         cleaned = workflow_id.strip()
         if not cleaned:
             raise LookupError("Unknown workflow: <empty>")
-        if db is not None and self._has_persisted_overview(db):
-            if self._find_persisted_task(db, cleaned) is None:
+        if self._overview_provider.has_persisted_workflows(db):
+            assert db is not None
+            if not self._overview_provider.has_persisted_workflow(db, cleaned):
                 raise LookupError(f"Unknown workflow: {cleaned}")
             return
-        if not any(workflow["id"] == cleaned for workflow in self._workflows):
+        if not any(workflow["id"] == cleaned for workflow in self._demo_workflows):
             raise LookupError(f"Unknown workflow: {cleaned}")
-
-
-def _coerce_optional_string(value: Any) -> str | None:
-    if value is None:
-        return None
-    value_str = str(value).strip()
-    return value_str or None
