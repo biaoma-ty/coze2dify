@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -94,7 +95,9 @@ def test_update_workflow_updates_app_metadata_and_graph(tmp_path) -> None:
         }
     )
 
-    writer.update_workflow("app-1", dsl)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        writer.update_workflow("app-1", dsl)
 
     engine = create_engine(db_url)
     try:
@@ -117,5 +120,7 @@ def test_update_workflow_raises_when_app_is_missing(tmp_path) -> None:
     writer = DifyDbWriter(db_url)
     writer._ensure_owner_context = lambda conn: ("tenant", "account")  # type: ignore[method-assign]
 
-    with pytest.raises(LookupError, match="missing-app"):
-        writer.update_workflow("missing-app", DifyDSL())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        with pytest.raises(LookupError, match="missing-app"):
+            writer.update_workflow("missing-app", DifyDSL())
