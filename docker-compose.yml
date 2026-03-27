@@ -20,7 +20,7 @@ services:
       - "8000:8000"
     environment:
       COZE2DIFY_DATABASE_URL: postgresql://coze2dify:coze2dify@db:5432/coze2dify
-      COZE2DIFY_DEBUG: "true"
+      COZE2DIFY_DEBUG: "false"
     depends_on:
       - db
 
