@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -482,19 +483,51 @@ def test_sync_config_rejects_soft_delete_until_rollback_exists(tmp_path) -> None
     assert "soft_delete is defined but intentionally unsupported" in response.json()["detail"]
 
 
-def test_app_startup_invokes_schedule_restore(monkeypatch) -> None:
-    called = {"create_all": 0, "restore_schedules": 0}
+def test_app_startup_validates_schema_and_restores_schedules(monkeypatch) -> None:
+    called = {"expected_heads": 0, "current_heads": 0, "restore_schedules": 0}
 
-    def fake_create_all(*args, **kwargs) -> None:  # noqa: ANN002, ANN003 - test double
-        called["create_all"] += 1
+    def fake_expected_schema_heads() -> tuple[str, ...]:
+        called["expected_heads"] += 1
+        return ("head",)
+
+    def fake_current_schema_heads() -> tuple[str, ...]:
+        called["current_heads"] += 1
+        return ("head",)
 
     def fake_restore_schedules() -> list[dict[str, object]]:
         called["restore_schedules"] += 1
         return []
 
-    monkeypatch.setattr(main.Base.metadata, "create_all", fake_create_all)
+    monkeypatch.setattr(main, "expected_schema_heads", fake_expected_schema_heads)
+    monkeypatch.setattr(main, "current_schema_heads", fake_current_schema_heads)
     monkeypatch.setattr(main.sync_endpoints, "restore_schedules", fake_restore_schedules)
 
-    main.ensure_project_tables()
+    main.ensure_project_ready()
 
-    assert called == {"create_all": 1, "restore_schedules": 1}
+    assert called == {"expected_heads": 1, "current_heads": 1, "restore_schedules": 1}
+
+
+def test_app_startup_rejects_unmigrated_database(monkeypatch) -> None:
+    monkeypatch.setattr(main, "expected_schema_heads", lambda: ("head",))
+    monkeypatch.setattr(main, "current_schema_heads", lambda: ())
+
+    def fail_restore_schedules() -> list[dict[str, object]]:
+        raise AssertionError("restore_schedules should not run for an unmigrated database")
+
+    monkeypatch.setattr(main.sync_endpoints, "restore_schedules", fail_restore_schedules)
+
+    with pytest.raises(RuntimeError, match="not migrated"):
+        main.ensure_project_ready()
+
+
+def test_app_startup_rejects_stale_schema(monkeypatch) -> None:
+    monkeypatch.setattr(main, "expected_schema_heads", lambda: ("head",))
+    monkeypatch.setattr(main, "current_schema_heads", lambda: ("old-head",))
+
+    def fail_restore_schedules() -> list[dict[str, object]]:
+        raise AssertionError("restore_schedules should not run for a stale database")
+
+    monkeypatch.setattr(main.sync_endpoints, "restore_schedules", fail_restore_schedules)
+
+    with pytest.raises(RuntimeError, match="out of date"):
+        main.ensure_project_ready()
