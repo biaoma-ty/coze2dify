@@ -66,13 +66,13 @@ async def fetch_from_api(req: CozeApiRequest):
 
 
 @router.post("/db/connect")
-async def test_db_connection(req: DbConnectRequest):
+def test_db_connection(req: DbConnectRequest):
     reader = CozeDbReader(req.db_url)
     return {"connected": reader.test_connection()}
 
 
 @router.post("/db/workflows")
-async def list_db_workflows(req: DbConnectRequest):
+def list_db_workflows(req: DbConnectRequest):
     reader = CozeDbReader(req.db_url)
     try:
         return {"workflows": reader.list_workflows()}
@@ -81,7 +81,7 @@ async def list_db_workflows(req: DbConnectRequest):
 
 
 @router.post("/db/fetch")
-async def fetch_from_db(req: DbFetchRequest, db: Session = Depends(get_db)):
+def fetch_from_db(req: DbFetchRequest, db: Session = Depends(get_db)):
     try:
         conversion = conversion_service.convert_from_db(db, db_url=req.db_url, workflow_id=req.workflow_id)
     except LookupError as exc:
