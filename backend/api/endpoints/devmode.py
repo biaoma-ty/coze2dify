@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 @router.get("/status")
-async def devmode_status():
+def devmode_status():
     """Return dev mode toggle state and detected local deployments."""
     if not settings.dev_mode:
         return {"enabled": False, "detected": {"coze": [], "dify": []}}
@@ -28,7 +28,7 @@ async def devmode_status():
 
 
 @router.get("/scan")
-async def devmode_scan():
+def devmode_scan():
     """Force re-scan for local deployments (regardless of dev_mode toggle)."""
     from core.devmode.detector import DevModeDetector
 
