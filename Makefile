@@ -44,8 +44,8 @@ lint: lint-backend lint-frontend ## Lint all
 lint-backend: ## Lint backend (ruff)
 	cd backend && ruff check .
 
-lint-frontend: ## Lint frontend (tsc)
-	cd frontend && npx tsc --noEmit
+lint-frontend: ## Lint frontend (eslint)
+	cd frontend && npm run lint
 
 format: ## Format backend code (ruff)
 	cd backend && ruff format .

@@ -124,6 +124,9 @@ jobs:
       - name: Install dependencies
         run: npm ci || npm install
 
+      - name: ESLint
+        run: npm run lint
+
       - name: TypeScript check
         run: npx tsc --noEmit
 
