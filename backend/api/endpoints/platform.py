@@ -104,7 +104,7 @@ async def dify_list_apps(req: DifyConnectRequest):
 
 
 @router.post("/db/connect")
-async def db_connect(req: DbConnectRequest):
+def db_connect(req: DbConnectRequest):
     """Test a direct database connection to Coze or Dify."""
     if req.platform == "dify":
         from core.dify.db_reader import DifyDbReader
@@ -123,7 +123,7 @@ async def db_connect(req: DbConnectRequest):
 
 
 @router.post("/db/workflows")
-async def db_list_workflows(req: DbConnectRequest):
+def db_list_workflows(req: DbConnectRequest):
     """List workflows from a database."""
     if req.platform == "dify":
         from core.dify.db_reader import DifyDbReader
