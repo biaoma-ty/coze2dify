@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import DateTime, bindparam, create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from db.database import Base
@@ -20,6 +21,37 @@ def _alembic_config(db_url: str) -> Config:
     config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", db_url)
     return config
+
+
+def _legacy_sync_config_insert():
+    return text(
+        """
+        INSERT INTO sync_configs (
+            name,
+            coze_db_type,
+            coze_db_url,
+            dify_db_url,
+            sync_mode,
+            delete_mode,
+            enabled,
+            created_at,
+            updated_at
+        ) VALUES (
+            :name,
+            :coze_db_type,
+            :coze_db_url,
+            :dify_db_url,
+            :sync_mode,
+            :delete_mode,
+            :enabled,
+            :created_at,
+            :updated_at
+        )
+        """
+    ).bindparams(
+        bindparam("created_at", type_=DateTime()),
+        bindparam("updated_at", type_=DateTime()),
+    )
 
 
 def test_sync_config_db_urls_are_encrypted_at_rest(tmp_path) -> None:
@@ -65,44 +97,22 @@ def test_sync_config_reads_legacy_plaintext_rows(tmp_path) -> None:
     plain_dify_db_url = "postgresql://legacy-dify.test/app"
 
     with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                INSERT INTO sync_configs (
-                    name,
-                    coze_db_type,
-                    coze_db_url,
-                    dify_db_url,
-                    sync_mode,
-                    delete_mode,
-                    enabled,
-                    created_at,
-                    updated_at
-                ) VALUES (
-                    :name,
-                    :coze_db_type,
-                    :coze_db_url,
-                    :dify_db_url,
-                    :sync_mode,
-                    :delete_mode,
-                    :enabled,
-                    :created_at,
-                    :updated_at
-                )
-                """
-            ),
-            {
-                "name": "Legacy Sync",
-                "coze_db_type": "postgresql",
-                "coze_db_url": plain_coze_db_url,
-                "dify_db_url": plain_dify_db_url,
-                "sync_mode": "manual",
-                "delete_mode": "observe_only",
-                "enabled": True,
-                "created_at": _utcnow(),
-                "updated_at": _utcnow(),
-            },
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            conn.execute(
+                _legacy_sync_config_insert(),
+                {
+                    "name": "Legacy Sync",
+                    "coze_db_type": "postgresql",
+                    "coze_db_url": plain_coze_db_url,
+                    "dify_db_url": plain_dify_db_url,
+                    "sync_mode": "manual",
+                    "delete_mode": "observe_only",
+                    "enabled": True,
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow(),
+                },
+            )
 
     with session_factory() as db:
         config = db.execute(select(SyncConfig)).scalars().one()
@@ -121,44 +131,22 @@ def test_alembic_upgrade_encrypts_existing_sync_config_db_urls(tmp_path) -> None
 
     engine = create_engine(db_url, connect_args={"check_same_thread": False})
     with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                INSERT INTO sync_configs (
-                    name,
-                    coze_db_type,
-                    coze_db_url,
-                    dify_db_url,
-                    sync_mode,
-                    delete_mode,
-                    enabled,
-                    created_at,
-                    updated_at
-                ) VALUES (
-                    :name,
-                    :coze_db_type,
-                    :coze_db_url,
-                    :dify_db_url,
-                    :sync_mode,
-                    :delete_mode,
-                    :enabled,
-                    :created_at,
-                    :updated_at
-                )
-                """
-            ),
-            {
-                "name": "Alembic Legacy Sync",
-                "coze_db_type": "postgresql",
-                "coze_db_url": "postgresql://coze.alembic/app",
-                "dify_db_url": "postgresql://dify.alembic/app",
-                "sync_mode": "manual",
-                "delete_mode": "observe_only",
-                "enabled": True,
-                "created_at": _utcnow(),
-                "updated_at": _utcnow(),
-            },
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            conn.execute(
+                _legacy_sync_config_insert(),
+                {
+                    "name": "Alembic Legacy Sync",
+                    "coze_db_type": "postgresql",
+                    "coze_db_url": "postgresql://coze.alembic/app",
+                    "dify_db_url": "postgresql://dify.alembic/app",
+                    "sync_mode": "manual",
+                    "delete_mode": "observe_only",
+                    "enabled": True,
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow(),
+                },
+            )
 
     command.upgrade(config, "head")
 
