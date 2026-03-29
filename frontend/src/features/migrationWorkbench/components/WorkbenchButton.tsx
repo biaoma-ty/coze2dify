@@ -14,6 +14,7 @@ export default function WorkbenchButton({
   compact = false,
   children,
   style,
+  type = "button",
   ...props
 }: WorkbenchButtonProps) {
   const scheme = {
@@ -25,6 +26,7 @@ export default function WorkbenchButton({
 
   return (
     <button
+      type={type === "submit" ? "submit" : type === "reset" ? "reset" : "button"}
       style={{
         display: "inline-flex",
         alignItems: "center",

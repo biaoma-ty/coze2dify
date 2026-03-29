@@ -68,6 +68,7 @@ run_backend_checks
 log_section "Frontend tests and build"
 (
   cd "${ROOT_DIR}/frontend"
+  npm run lint
   npm run test
   npx tsc --noEmit
   npm run build
