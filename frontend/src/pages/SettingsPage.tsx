@@ -142,6 +142,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <button
+                type="button"
                 className="btn btn-primary"
                 onClick={handleTestCoze}
                 disabled={testing === "coze" || !cozeTokenInput}
@@ -192,6 +193,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <button
+                type="button"
                 className="btn btn-primary"
                 onClick={handleTestDify}
                 disabled={testing === "dify" || !difyBaseInput || !difyKeyInput}
@@ -229,6 +231,7 @@ export default function SettingsPage() {
             </span>
             <div style={{ display: "flex", gap: 8 }}>
               <button
+                type="button"
                 className={`btn ${i18n.language === "en" ? "btn-primary" : "btn-ghost"}`}
                 onClick={() => handleLanguageChange("en")}
                 style={{ padding: "6px 14px", fontSize: "0.82rem" }}
@@ -236,6 +239,7 @@ export default function SettingsPage() {
                 {t("settings.english")}
               </button>
               <button
+                type="button"
                 className={`btn ${i18n.language === "zh" ? "btn-primary" : "btn-ghost"}`}
                 onClick={() => handleLanguageChange("zh")}
                 style={{ padding: "6px 14px", fontSize: "0.82rem" }}

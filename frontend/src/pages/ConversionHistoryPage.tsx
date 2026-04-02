@@ -72,6 +72,7 @@ export default function ConversionHistoryPage() {
           <div className="alert alert--error">{error}</div>
           <div>
             <button
+              type="button"
               className="btn btn-secondary"
               onClick={() => setReloadKey((value) => value + 1)}
             >
@@ -147,6 +148,7 @@ export default function ConversionHistoryPage() {
 
             <div style={{ display: "flex", gap: 10 }}>
               <button
+                type="button"
                 className="btn btn-ghost"
                 onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
                 disabled={offset === 0 || loading}
@@ -154,6 +156,7 @@ export default function ConversionHistoryPage() {
                 ← Previous
               </button>
               <button
+                type="button"
                 className="btn btn-secondary"
                 onClick={() => setOffset(offset + PAGE_SIZE)}
                 disabled={loading || offset + PAGE_SIZE >= total}
