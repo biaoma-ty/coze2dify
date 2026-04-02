@@ -111,6 +111,7 @@ export default function UploadPage() {
       <div className="tab-bar" style={{ marginBottom: 24 }}>
         {tabs.map((t) => (
           <button
+            type="button"
             key={t.key}
             className={`tab-btn ${tab === t.key ? "tab-btn--active" : ""}`}
             onClick={() => setTab(t.key)}

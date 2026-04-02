@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "@umijs/max";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, RotateCcw, FileDown, Loader2, AlertTriangle, Eye } from "lucide-react";
+import { ArrowRight, RotateCcw, FileDown, AlertTriangle, Eye } from "lucide-react";
 import ConversionVisualBoard from "../components/diff/ConversionVisualBoard";
 import SideBySideGraph from "../components/diff/SideBySideGraph";
 import NodeDetailDrawer from "../components/diff/NodeDetailDrawer";
@@ -173,13 +173,17 @@ export default function DiffPage() {
       {/* Action Bar */}
       <div style={{ marginTop: 32, display: "flex", gap: 12 }}>
         <button
+          type="button"
           className="btn btn-primary"
           onClick={() => navigate(`/migrate/result/${conversionId}`)}
         >
           <ArrowRight size={15} />
           {t("diff.continueToExport")}
         </button>
-        <button className="btn btn-secondary" onClick={() => {
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
           const report = activeReport;
           const lines = [
             `# Conversion Report: ${report.workflow_name}`,
@@ -212,11 +216,12 @@ export default function DiffPage() {
           a.download = `conversion-report-${conversionId}.md`;
           a.click();
           URL.revokeObjectURL(url);
-        }}>
+          }}
+        >
           <FileDown size={15} />
           {t("diff.downloadReport")}
         </button>
-        <button className="btn btn-ghost" onClick={() => navigate("/migrate")}>
+        <button type="button" className="btn btn-ghost" onClick={() => navigate("/migrate")}>
           <RotateCcw size={15} />
           {t("diff.startOver")}
         </button>

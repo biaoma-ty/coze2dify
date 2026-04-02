@@ -111,6 +111,7 @@ export default function MigratePage() {
       <div className="tab-bar" style={{ marginBottom: 24 }}>
         {tabs.map((tabItem) => (
           <button
+            type="button"
             key={tabItem.key}
             className={`tab-btn ${tab === tabItem.key ? "tab-btn--active" : ""}`}
             onClick={() => setTab(tabItem.key)}

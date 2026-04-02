@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "max dev",
     "build": "max build",
-    "lint": "max lint --eslint-only \"src/{api,store,types,features/migrationWorkbench}/**/*.{ts,tsx}\"",
+    "lint": "max lint --eslint-only \"src/{api,store,types,features/migrationWorkbench}/**/*.{ts,tsx}\" \"src/pages/{ConversionHistoryPage,DiffPage,MigratePage,ResultPage,SettingsPage,UploadPage}.tsx\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "max setup",

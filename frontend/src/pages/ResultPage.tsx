@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "@umijs/max";
+import { useParams } from "@umijs/max";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Rocket, Loader2 } from "lucide-react";
+import { AlertTriangle, Rocket } from "lucide-react";
 import PageShell from "../components/common/PageShell";
 import EmptyState from "../components/common/EmptyState";
 import Skeleton from "../components/common/Skeleton";
@@ -14,7 +14,6 @@ import { getConversion } from "../api/conversion";
 
 export default function ResultPage() {
   const { conversionId } = useParams();
-  const navigate = useNavigate();
   const { t } = useTranslation();
   const {
     conversionId: storedConversionId,
